@@ -2,6 +2,7 @@
 from Base.BaseMarketDataDownloader import BaseMarketDataDownloader
 from API.Huobi import HuobiServices
 import time
+import threading
 
 class HuobiMarketDataDownloader(BaseMarketDataDownloader):
     """
@@ -13,9 +14,31 @@ class HuobiMarketDataDownloader(BaseMarketDataDownloader):
         super().__init__(self.exchangerName)
         self.symbol = symbol
         self.exceptionCount = 0
+
+    def SetDepthDataCallback(self,callback):
+        """
+        设置深度数据下载回调
+        """
+        self.depthDataCallback = callback
         
+    def DoWork(self):
+        """
+        开始下载数据，不同模块的数据放到不同线程中去下载
+        """
+        t = threading.Thread(target=self.__WorkThread_DepthData)
+        t.setDaemon(True)
+        t.start()
         
-    def DownloadDepthData(self):
+    def __WorkThread_DepthData(self):
+        """
+        价格深度数据下线程
+        """
+        while True:
+            dataResult = self.__DownloadDepthData__()
+            if dataResult != None and self.depthDataCallback != None:
+                self.depthDataCallback(dataResult)
+            
+    def __DownloadDepthData__(self):
         """
         下载深度数据，用 time.sleep 大概保证每秒返回一个数据，不至于太快导致计算上的复杂
         如果本次获取数据失败，则返回 None
@@ -40,8 +63,6 @@ class HuobiMarketDataDownloader(BaseMarketDataDownloader):
             ask6 = depthData['tick']['asks'][5][0]
             ask7 = depthData['tick']['asks'][6][0]
             
-            self.exceptionCount = 0
-            
             endTime = time.time()
             usedTime = endTime - startTime
             waitTime = 1 - usedTime - 0.1
@@ -51,17 +72,17 @@ class HuobiMarketDataDownloader(BaseMarketDataDownloader):
                 
             return (bid1,bid2,bid3,bid4,bid5,bid6,bid7,ask1,ask2,ask3,ask4,ask5,ask6,ask7)
         except Exception as e:
-            self.exceptionCount += 1
             print("Download DepthData Exception: ",e)
-            if self.exceptionCount >= 10:
-                # 告诉上层，清掉行情数据 ，因为行情数据延迟了有几秒了
-                return ("ResetData",)
-            else:
-                return None
+            time.sleep(2)
+            return None
             
+
 '''
-# Do Test
-downloader = HuobiMarketDataDownloader("Huobi",'btcusdt')
-for x in range(100):
-    print(downloader.DownloadDepthData())
+def DepthDataCallback(depthData):
+    print(depthData)
+
+downloader = HuobiMarketDataDownloader('btcusdt',DepthDataCallback)
+
+while True:
+    pass
 '''
