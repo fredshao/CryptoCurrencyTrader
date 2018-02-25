@@ -9,7 +9,7 @@ realTimeAsks = []
 realTimeBids = []
 
 __symbol = 'btcusdt'
-__logFileName = "./Log/DataDownloader.log"
+__logFile = "./Log/DataDownloader.log"
 
 # 用于临时处理异常的记录变量
 __lastExceptionTime = -1
@@ -72,7 +72,7 @@ def __WorkThread():
                 __exceptionTime = int(time.time())
 
             __exceptionCount += 1
-            Log.Info(__logFileName,"Exception: " + str(e))
+            Log.Info(__logFile,"Exception: " + str(e))
             time.sleep(1)
         finally:
             if __exceptionTime > 0:
@@ -80,10 +80,10 @@ def __WorkThread():
                 diffSeconds = currTime - __exceptionTime
                 if diffSeconds >= 60:
                     #print("Exceptioin Count in 1Min:",__exceptionCount)
-                    Log.Info(__logFileName,"Exception Count in 1Min: {}".format(__exceptionCount))
+                    Log.Info(__logFile,"Exception Count in 1Min: {}".format(__exceptionCount))
 
                     if __exceptionCount > 10:
-                        Log.Info(__logFileName,"more than 15 times Exception in 1Min, Clear Data")
+                        Log.Info(__logFile,"more than 15 times Exception in 1Min, Clear Data")
                         __InitData()
 
                     __exceptionTime = currTime
