@@ -4,5 +4,5 @@
 __pycache__
 API/Huobi/__pycache__/
 API/__pycache__/
-Log/
 Utils/__pycache__/
+Log/*.log
