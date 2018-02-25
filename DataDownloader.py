@@ -36,8 +36,6 @@ def __ParseData(bid,ask):
     realTimeAsks.append(ask)
     print(bid,ask)
     
-
-
 def __WorkThread():
     global __exceptionTime,__exceptionCount
 
