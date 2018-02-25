@@ -16,10 +16,16 @@ def StartModules():
     DataDownloader.Start()
 
 
-StartModules()
+def DoStrategy():
+    print("Do Strategy")
 
 
-while(True):
-    print(len(DataDownloader.realTimeBids),len(DataDownloader.realTimeAsks))
-    time.sleep(1)
+if __name__ == '__main__':
+    InitSystem()
+    StartModules()
+    
+    while(True):
+        DoStrategy()
+        time.sleep(1)
+
     

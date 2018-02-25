@@ -18,14 +18,21 @@ __exceptionCount = 0
 __exceptionTime = -1
 __exceptionCountIn1Min = 0
 
+__dataTime = -1
 
 def __InitData():
+    """
+    初始化卖单和买价价存储列表
+    """
     global realTimeAsks,realTimeBids
     realTimeAsks = []
     realTimeBids = []
 
 def __ParseData(bid,ask):
-    global realTimeAsks,realTimeBids
+    """
+    存储卖单和买单的价格
+    """
+    global realTimeAsks,realTimeBids,__dataTime
     # 进行数据裁剪，不需要存那么多数据
     if len(realTimeAsks) > 3600:
         realTimeAsks = realTimeAsks[-120:]
@@ -34,9 +41,13 @@ def __ParseData(bid,ask):
 
     realTimeBids.append(bid)
     realTimeAsks.append(ask)
-    print(bid,ask)
+    __dataTime = int(time.time())
     
 def __WorkThread():
+    """
+    数据下载线程
+    如果换成别的交易所，需要改这个函数里的下载那一行代码
+    """
     global __exceptionTime,__exceptionCount
 
     while(True):
@@ -62,6 +73,7 @@ def __WorkThread():
 
             __exceptionCount += 1
             Log.Info(__logFileName,"Exception: " + str(e))
+            time.sleep(1)
         finally:
             if __exceptionTime > 0:
                 currTime = int(time.time())
@@ -76,6 +88,17 @@ def __WorkThread():
 
                     __exceptionTime = currTime
                     __exceptionCount = 0
+
+
+def DataValid():
+    """
+    如果上一次更新数据超过了10s，则视为数据不合法，使用数据前，要检查数据的合法性
+    """
+    currTime = int(time.time())
+    if __dataTime > 0 and currTime - __dataTime < 10:
+        return True
+
+    return False
 
 
 def Start():
