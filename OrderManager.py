@@ -28,6 +28,9 @@ class HoldBuy:
         self.filledAmount = filledAmount    # 最终成交的数量 btc
         self.finalCost = finalCost          # 最终花费 usdt
 
+    def __str__(self):
+        return "HoldBuy: orderId:{} buyTime:{} buyPrice:{} buyAmount:{} filledAmount:{} finalCost:{}".format(self.orderId,self.buyTime,self.buyPrice,self.buyAmount,self.filledAmount,self.finalCost)
+
 class OrderOperation:
     def __init__(self,orderType,orderTime,price,amount,operationId):
         """
@@ -41,6 +44,9 @@ class OrderOperation:
         self.price = price
         self.amount = amount
         self.operationId = operationId
+
+    def __str__(self):
+        return "OrderOperation: orderType:{} orderTime:{} price:{} amount:{} operationId:{}".format(self.orderType,self.orderTime,self.price,self.amount,self.operationId)
 
 def __HoldBuyObj2Json(obj):
     """
@@ -83,12 +89,22 @@ def __OrderOperationJson2Obj(jsonData):
     """
     将Json字符串转为OrderOperation类对象
     """
+
+    if len(jsonData) == 0:
+        return {}
+
+    if isinstance(jsonData,dict):
+        for key in jsonData:
+            item = jsonData[key]
+            if isinstance(item,OrderOperation):
+                return jsonData
+
     orderType = jsonData['orderType']
     orderTime = datetime.strptime(jsonData['orderTime'],"%Y-%m-%d %H:%M:%S")
     price = jsonData['price']
     amount = jsonData['amount']
     operationId = jsonData['operationId']
-    return OrderOperation(orderType,orderTime,price,amount,operationId)
+    return OrderOperation(orderType,orderTime,price,amount,operationId)    
 
 def __LoadHoldBuy():
     """
@@ -98,7 +114,11 @@ def __LoadHoldBuy():
     if os.path.exists(__holdBuyFile):
         try:
             jsonStr = IOUtil.ReadTextFromFile(__holdBuyFile)
-            holdBuys = json.loads(jsonStr,object_hook=__HoldBuyJson2Obj)            
+            holdBuys = json.loads(jsonStr,object_hook=__HoldBuyJson2Obj)
+            print("HoldBuys Loaded:")
+            for item in holdBuys:
+                print(item)
+            print("")
         except Exception as e:
             Log.Print("Fatal Error, Load hold buy file faild!",e)
             Log.Info(__logFile,"Fatal Error , Can not load hold buy data!")
@@ -123,9 +143,9 @@ def __LoadLocalOperations(fileName):
             return localOperations
         except Exception as e:
             Log.Print("Fatal Error, Load local operation faild! ",e,fileName)
-            Log.info(__logFile,"Fatal Error, Can not load local operation! " + fileName)
+            Log.Info(__logFile,"Fatal Error, Can not load local operation! " + fileName)
             sys.exit()
-    
+
     return []
 
 def __SaveLocalOperations(operations, fileName):
@@ -133,7 +153,7 @@ def __SaveLocalOperations(operations, fileName):
     将本地订单操作保存到文件
     """
     jsonStr = json.dumps(operations,default=__OrderOperation2Json)
-    IOUtil.WriteTextToFile(fileName,operations)
+    IOUtil.WriteTextToFile(fileName,jsonStr)
 
 def __LoadLocalBuyOperations():
     """
@@ -141,7 +161,10 @@ def __LoadLocalBuyOperations():
     """
     global __localBuyOperations
     __localBuyOperations = __LoadLocalOperations(__localBuyOrdersFile)
-
+    print("Local Buy Operations Loaded:")
+    for key in __localBuyOperations:
+        print(__localBuyOperations[key])
+    print("")
 
 def __SaveLocalBuyOperations():
     """
@@ -157,6 +180,10 @@ def __LoadLocalSellOperations():
     """
     global __localSellOperations
     __localSellOperations = __LoadLocalOperations(__localSellOrdersFile)
+    print("Local Sell Operations Loaded:")
+    for key in __localSellOperations:
+        print(__localSellOperations[key])
+    print("")
 
 def __SaveLocalSellOperations():
     """
@@ -173,8 +200,8 @@ def __SendLocalBuy(buyPrice,buyAmount,operationId):
     buyOperation = OrderOperation(1,currTime,buyPrice,buyAmount,operationId)
     if __localBuyOperations.__contains__(operationId) == False:
         __localBuyOperations[operationId] = buyOperation
-        Log.Print("Send local Buy Operation: time{} operationId:{} buyPrice:{} buyAmount:{}".format(currTime,operationId,buyPrice,buyAmount))
-        Log.Info(__logFile,"Send Local Buy Operation: time:{} operationId:{} buyPrice:{} buyAmount:{}".format(currTime,operationId,buyPrice,buyAmount))
+        Log.Print("Send local Buy: time:{} operationId:{} buyPrice:{} buyAmount:{}".format(currTime,operationId,buyPrice,buyAmount))
+        Log.Info(__logFile,"Send Local Buy: time:{} operationId:{} buyPrice:{} buyAmount:{}".format(currTime,operationId,buyPrice,buyAmount))
         __SaveLocalBuyOperations()
         return True
     else:
@@ -189,8 +216,8 @@ def __SendLocalSell(sellPrice,sellAmount,operationId):
     sellOperation = OrderOperation(0,currTime,sellPrice,sellAmount,operationId)
     if __localSellOperations.__contains__(operationId) == False:
         __localSellOperations[operationId] = sellOperation
-        Log.Print("Send Local Sell Operation: time:{} operationId:{} sellPrice:{} sellAmount:{}".format(currTime,operationId,sellPrice,sellAmount))
-        Log.Info(__logFile,"Send Local Sell Operation: time:{} operationId:{} sellPrice:{} sellAmount:{}".format(currTime,operationId,sellPrice,sellAmount))
+        Log.Print("Send Local Sell: time:{} operationId:{} sellPrice:{} sellAmount:{}".format(currTime,operationId,sellPrice,sellAmount))
+        Log.Info(__logFile,"Send Local Sell: time:{} operationId:{} sellPrice:{} sellAmount:{}".format(currTime,operationId,sellPrice,sellAmount))
         __SaveLocalSellOperations()
         return True
     else:
@@ -204,6 +231,8 @@ def __SendExchangerBuy(buyPrice,buyAmount,operationId):
 def __SendExchangerSell(sellPrice,sellAmount,operationId):
     Log.Print("Send Exchanger Sell: operationId:{} sellPrice:{} sellAmount:{}".format(operationId,sellPrice,sellAmount))
 
+def __ProofreadData():
+    pass
 
 
 def SendBuy(buyPrice,buyAmount,operationId):
@@ -217,10 +246,29 @@ def SendSell(sellPrice,sellAmount,operationId):
     
 
     
-    
+def Start():
+    __LoadHoldBuy()
+    __LoadLocalBuyOperations()
+    __LoadLocalSellOperations()
+    __ProofreadData()
 
 
-"""
+#Start()
+
+#__SaveLocalBuyOperations()
+#__SaveLocalSellOperations()
+#__SaveHoldBuys()
+
+
+SendBuy(11021,0.02,str(time.time()))
+time.sleep(1)
+SendBuy(10111,0.03,str(time.time()))
+time.sleep(1)
+SendSell(12103.02,0.02,str(time.time()))
+time.sleep(1)
+SendSell(13122,0.02,str(time.time()))
+
+
 holdBuy1 = HoldBuy(100001,datetime.now(),9657,0.12,0.12,1158.84)
 holdBuy2 = HoldBuy(100002,datetime.now(),9963,0.03,0.03,298.89)
 holdBuys.append(holdBuy1)
@@ -228,9 +276,8 @@ holdBuys.append(holdBuy2)
 
 __SaveHoldBuys()
 
-__LoadHoldBuy()
-
-"""
+#__LoadHoldBuy()
 
 
-Log.Log.Print("haha")
+
+#Log.Log.Print("haha")
