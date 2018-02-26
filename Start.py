@@ -1,19 +1,16 @@
 # -*- coding: utf-8 -*-
 
 import DataDownloader
-
+import BalanceManager
 import time
 
-def InitSystem():
-    """
-    系统初始化，加载所有数据
-    """
+def RecoverSystem():
     pass
 
-
-
-def StartModules():
+def StartSystem():
+    RecoverSystem()
     DataDownloader.Start()
+    BalanceManager.Start()
 
 
 def DoStrategy():
