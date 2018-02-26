@@ -16,8 +16,8 @@ holdBuys = []
 
 # 购买和出售订单本地存储，先本地下单，然后进行网络下单
 # 系统启动的时候，会用所有的本地下单去检查网络下单，进行数据校对
-__localBuyOrders = []
-__localSellOrders = []
+__localBuyOperations = []
+__localSellOperations = []
 
 class HoldBuy:
     def __init__(self,orderId,buyTime,buyPrice,buyAmount,filledAmount,finalCost):
@@ -112,14 +112,70 @@ def __SaveHoldBuys():
     jsonStr = json.dumps(holdBuys,default=__HoldBuyObj2Json)
     IOUtil.WriteTextToFile(__holdBuyFile,jsonStr)
 
-def __LoadLocal
+def __LoadLocalOperations(fileName):
+    """
+    加载本地的订单操作
+    """
+    if os.path.exists(fileName):
+        try:
+            jsonStr = IOUtil.ReadTextFromFile(fileName)
+            localOperations = json.loads(jsonStr,object_hook=__OrderOperationJson2Obj)
+            return localOperations
+        except Exception as e:
+            print("Fatal Error, Load local operation faild! ",e,fileName)
+            Log.info(__logFile,"Fatal Error, Can not load local operation! " + fileName)
+            sys.exit()
+    
+    return []
+
+def __SaveLocalOperations(operations, fileName):
+    """
+    将本地订单操作保存到文件
+    """
+    jsonStr = json.dumps(operations,default=__OrderOperation2Json)
+    IOUtil.WriteTextToFile(fileName,operations)
+
+def __LoadLocalBuyOperations():
+    """
+    加载本地购买订单操作
+    """
+    global __localBuyOperations
+    __localBuyOperations = __LoadLocalOperations(__localBuyOrdersFile)
+
+
+def __SaveLocalBuyOperations():
+    """
+    保存本地购买订单操作
+    """
+    global __localBuyOperations
+    __SaveLocalOperations(__localBuyOperations,__localBuyOrdersFile)
+
+
+def __LoadLocalSellOperations():
+    """
+    加载本地卖出订单操作
+    """
+    global __localSellOperations
+    __localSellOperations = __LoadLocalOperations(__localSellOrdersFile)
+
+def __SaveLocalSellOperations():
+    """
+    保存本地卖出订单操作
+    """
+    global __localSellOperations
+    __SaveLocalOperations(__localSellOperations,__localSellOrdersFile)
 
 
 
 def SendBuy(buyPrice,buyAmount,operationId):
     # TODO: call exchanger API to send buy order
+    global __localBuyOperations, __localSellOperations
     Log.Info(__logFile,"Send Buy Order, operationId:{} buyPrice:{} buyAmount:{}".format(operationId,buyPrice,buyAmount))
     currTime = TimeUtil.GetShanghaiTime()
+
+    # 先本地下单  def __init__(self,orderType,orderTime,price,amount,operationId):
+    buyOperation = OrderOperation(1,currTime,buyPrice,buyAmount,operationId)
+    __localBuyOperations.append(buyOrder)
     
 
 
