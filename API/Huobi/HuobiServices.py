@@ -12,6 +12,15 @@ from API.Huobi.Utils import *
 Market data API
 '''
 
+ACCOUNT_ID = ""
+
+def init_key(access_key,secret_key):
+    set_key(access_key,secret_key)
+    
+def init_account(account_id):
+    global ACCOUNT_ID
+    ACCOUNT_ID = account_id
+    print("ACCOUNT_ID:",ACCOUNT_ID)
 
 # 获取KLine
 def get_kline(symbol, period, size=150):
@@ -126,7 +135,7 @@ def get_balance(acct_id=None):
 
     if not acct_id:
         accounts = get_accounts()
-        acct_id = accounts['data'][0]['id'];
+        acct_id = accounts['data'][0]['id']
 
     url = "/v1/account/accounts/{0}/balance".format(acct_id)
     params = {"account-id": acct_id}
@@ -134,9 +143,31 @@ def get_balance(acct_id=None):
 
 
 # 下单
+def send_order(amount, source, symbol, _type, price=0):
+    """
+    :param amount: 
+    :param source: 如果使用借贷资产交易，请在下单接口,请求参数source中填写'margin-api'
+    :param symbol: 
+    :param _type: 可选值 {buy-market：市价买, sell-market：市价卖, buy-limit：限价买, sell-limit：限价卖}
+    :param price: 
+    :return: 
+    """
+    
+    acct_id = ACCOUNT_ID
+    params = {"account-id": acct_id,
+              "amount": amount,
+              "symbol": symbol,
+              "type": _type,
+              "source": source}
+    if price:
+        params["price"] = price
+
+    url = '/v1/order/orders/place'
+    return api_key_post(params, url)
+
 
 # 创建并执行订单
-def send_order(amount, source, symbol, _type, price=0):
+def _send_order(amount, source, symbol, _type, price=0):
     """
     :param amount: 
     :param source: 如果使用借贷资产交易，请在下单接口,请求参数source中填写'margin-api'

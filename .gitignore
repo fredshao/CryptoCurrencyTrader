@@ -6,3 +6,5 @@ API/Huobi/__pycache__/
 API/__pycache__/
 Utils/__pycache__/
 Log/*.log
+
+Config.json

@@ -6,6 +6,10 @@ import os
 import time
 from Utils import IOUtil, Log, TimeUtil
 from datetime import datetime
+import threading
+from AIP.Huobi import HuobiServices
+
+SYMBOL = 'btcusdt'
 
 __logFile = "./Log/order.log"
 __holdBuyFile = './Data/holdBuy'
@@ -14,10 +18,15 @@ __localSellOrdersFile = './Data/localSellOrders'
 
 holdBuys = []
 
+terminated = False
+
 # 购买和出售订单本地存储，先本地下单，然后进行网络下单
 # 系统启动的时候，会用所有的本地下单去检查网络下单，进行数据校对
 __localBuyOperations = {}
 __localSellOperations = {}
+
+# 已经归档案的订单
+__archivedOrders = {}
 
 class HoldBuy:
     def __init__(self,orderId,buyTime,buyPrice,buyAmount,filledAmount,finalCost):
@@ -47,6 +56,55 @@ class OrderOperation:
 
     def __str__(self):
         return "OrderOperation: orderType:{} orderTime:{} price:{} amount:{} operationId:{}".format(self.orderType,self.orderTime,self.price,self.amount,self.operationId)
+
+
+class ExchangerOrderOperation:
+    def __init__(self,orderType,price,amount,operationId,exchangerOrder = None):
+        self.orderType = orderType
+        self.price = price
+        self.amount = amount
+        self.operationId = operationId
+        self.exchangerOrder = exchangerOrder
+        self.__DoIt()
+
+    def __OrderThread(self):
+        print("Hello:{} {} {} {}".format(self.orderType,self.price,self.amount,self.operationId))
+
+        # 如果第一次下单失败了，就再尝试一次，一共尝试2次
+        # 下单有几种情况，1 超时，2 失败，3 成功
+        for x in range(2):
+            if self.orderType == 0: # 下卖单
+                HuobiServices.send_order(ACCOUNT_ID,self.amount,'api',SYMBOL,'sell-limit',self.price)
+            else if self.orderType == 1: # 下买单
+                pass
+
+    def __CheckThread(self):
+        global terminated
+        while True:   # 如果系统未退出
+            if terminated == True:
+                break
+
+            if self.exchangerOrder != None:
+                pass
+                # check the order status
+
+                # if the order is filled, archiving the order
+            time.sleep(2)
+
+            
+    
+
+
+    def __DoIt(self):
+        if self.exchangerOrder == None:
+            t = threading.Thread(target=self.__WorkThread)
+            t.setDaemon(True)
+            t.start()
+        
+        t1 = threading.Thread(target=self.__CheckThread)
+        t1.setDaemon(True)
+        t1.start()
+
 
 def __HoldBuyObj2Json(obj):
     """
@@ -226,9 +284,15 @@ def __SendLocalSell(sellPrice,sellAmount,operationId):
     return False
 
 def __SendExchangerBuy(buyPrice,buyAmount,operationId):
+    """
+    与交易所通信，下买单
+    """
     Log.Print("Send Exchanger Buy: operationId:{} buyPrice:{} buyAmount:{}".format(operationId,buyPrice,buyAmount))
 
 def __SendExchangerSell(sellPrice,sellAmount,operationId):
+    """
+    与交易所通信，下卖单
+    """
     Log.Print("Send Exchanger Sell: operationId:{} sellPrice:{} sellAmount:{}".format(operationId,sellPrice,sellAmount))
 
 def __ProofreadData():
@@ -245,39 +309,17 @@ def SendSell(sellPrice,sellAmount,operationId):
         __SendExchangerSell(sellPrice,sellAmount,operationId)
     
 
-    
+'''
 def Start():
     __LoadHoldBuy()
     __LoadLocalBuyOperations()
     __LoadLocalSellOperations()
     __ProofreadData()
+'''
 
 
-#Start()
+#operation = ExchangerOrderOperation(0,11011,0.11,str(time.time()))
 
-#__SaveLocalBuyOperations()
-#__SaveLocalSellOperations()
-#__SaveHoldBuys()
+#time.sleep(5)
 
 
-SendBuy(11021,0.02,str(time.time()))
-time.sleep(1)
-SendBuy(10111,0.03,str(time.time()))
-time.sleep(1)
-SendSell(12103.02,0.02,str(time.time()))
-time.sleep(1)
-SendSell(13122,0.02,str(time.time()))
-
-
-holdBuy1 = HoldBuy(100001,datetime.now(),9657,0.12,0.12,1158.84)
-holdBuy2 = HoldBuy(100002,datetime.now(),9963,0.03,0.03,298.89)
-holdBuys.append(holdBuy1)
-holdBuys.append(holdBuy2)
-
-__SaveHoldBuys()
-
-#__LoadHoldBuy()
-
-
-
-#Log.Log.Print("haha")
