@@ -72,6 +72,7 @@ def __WorkThread():
                 __exceptionTime = int(time.time())
 
             __exceptionCount += 1
+            Log.Print("Exception: ",str(e))
             Log.Info(__logFile,"Exception: " + str(e))
             time.sleep(1)
         finally:
@@ -83,6 +84,7 @@ def __WorkThread():
                     Log.Info(__logFile,"Exception Count in 1Min: {}".format(__exceptionCount))
 
                     if __exceptionCount > 10:
+                        Log.Print("more than 15 times Exception in 1Min, Clear Data")
                         Log.Info(__logFile,"more than 15 times Exception in 1Min, Clear Data")
                         __InitData()
 
@@ -105,7 +107,7 @@ def Start():
     t = threading.Thread(target=__WorkThread)
     t.setDaemon(True)
     t.start()
-    print("DataDownloader Started!")
+    Log.Print("DataDownloader Started!")
 
 
 '''

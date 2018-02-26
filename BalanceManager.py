@@ -25,7 +25,7 @@ def __LoadBalance():
             __baseBalance = jsonData['baseBalance']
             __quoteBalance = jsonData['quoteBalance']
         except Exception as e:
-            print("Fatal Error , can not load balance file! ",e)
+            Log.Print("Fatal Error , can not load balance file! ",e)
             Log.Info(__logFile,"Fatal Error, Can not load balance file! " + str(e))
             sys.exit()     
     else:

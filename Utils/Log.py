@@ -3,6 +3,12 @@ from Utils import IOUtil
 from Utils import TimeUtil
 import os
 
+
+def Print(*args):
+    currTime = TimeUtil.GetShanghaiTime()
+    print(currTime,':',*args)
+
+
 def Info(logFilePath, logText):
     """
     日志写入

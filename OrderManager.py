@@ -16,8 +16,8 @@ holdBuys = []
 
 # 购买和出售订单本地存储，先本地下单，然后进行网络下单
 # 系统启动的时候，会用所有的本地下单去检查网络下单，进行数据校对
-__localBuyOperations = []
-__localSellOperations = []
+__localBuyOperations = {}
+__localSellOperations = {}
 
 class HoldBuy:
     def __init__(self,orderId,buyTime,buyPrice,buyAmount,filledAmount,finalCost):
@@ -100,7 +100,7 @@ def __LoadHoldBuy():
             jsonStr = IOUtil.ReadTextFromFile(__holdBuyFile)
             holdBuys = json.loads(jsonStr,object_hook=__HoldBuyJson2Obj)            
         except Exception as e:
-            print("Fatal Error, Load hold buy file faild!",e)
+            Log.Print("Fatal Error, Load hold buy file faild!",e)
             Log.Info(__logFile,"Fatal Error , Can not load hold buy data!")
             sys.exit()
 
@@ -122,7 +122,7 @@ def __LoadLocalOperations(fileName):
             localOperations = json.loads(jsonStr,object_hook=__OrderOperationJson2Obj)
             return localOperations
         except Exception as e:
-            print("Fatal Error, Load local operation faild! ",e,fileName)
+            Log.Print("Fatal Error, Load local operation faild! ",e,fileName)
             Log.info(__logFile,"Fatal Error, Can not load local operation! " + fileName)
             sys.exit()
     
@@ -166,16 +166,57 @@ def __SaveLocalSellOperations():
     __SaveLocalOperations(__localSellOperations,__localSellOrdersFile)
 
 
+def __SendLocalBuy(buyPrice,buyAmount,operationId):
+    # 先本地下单
+    global __localBuyOperations
+    currTime = TimeUtil.GetShanghaiTime()
+    buyOperation = OrderOperation(1,currTime,buyPrice,buyAmount,operationId)
+    if __localBuyOperations.__contains__(operationId) == False:
+        __localBuyOperations[operationId] = buyOperation
+        Log.Print("Send local Buy Operation: time{} operationId:{} buyPrice:{} buyAmount:{}".format(currTime,operationId,buyPrice,buyAmount))
+        Log.Info(__logFile,"Send Local Buy Operation: time:{} operationId:{} buyPrice:{} buyAmount:{}".format(currTime,operationId,buyPrice,buyAmount))
+        __SaveLocalBuyOperations()
+        return True
+    else:
+        Log.Print("ERROR: Send local buy operation faild, already has operation:{}".format(operationId))
+        Log.Info(__logFile,"ERROR: Send local buy operation faild, already has operation:{}".format(operationId))
+    return False
+
+def __SendLocalSell(sellPrice,sellAmount,operationId):
+    # 下本地卖单
+    global __localSellOperations
+    currTime = TimeUtil.GetShanghaiTime()
+    sellOperation = OrderOperation(0,currTime,sellPrice,sellAmount,operationId)
+    if __localSellOperations.__contains__(operationId) == False:
+        __localSellOperations[operationId] = sellOperation
+        Log.Print("Send Local Sell Operation: time:{} operationId:{} sellPrice:{} sellAmount:{}".format(currTime,operationId,sellPrice,sellAmount))
+        Log.Info(__logFile,"Send Local Sell Operation: time:{} operationId:{} sellPrice:{} sellAmount:{}".format(currTime,operationId,sellPrice,sellAmount))
+        __SaveLocalSellOperations()
+        return True
+    else:
+        Log.Print("ERROR: Send local sell operation faild, already has operation:{}".format(operationId))
+        Log.Info(__logFile,"ERROR: Send local sell operation faild, already has operation:{}".format(operationId))
+    return False
+
+def __SendExchangerBuy(buyPrice,buyAmount,operationId):
+    Log.Print("Send Exchanger Buy: operationId:{} buyPrice:{} buyAmount:{}".format(operationId,buyPrice,buyAmount))
+
+def __SendExchangerSell(sellPrice,sellAmount,operationId):
+    Log.Print("Send Exchanger Sell: operationId:{} sellPrice:{} sellAmount:{}".format(operationId,sellPrice,sellAmount))
+
+
 
 def SendBuy(buyPrice,buyAmount,operationId):
     # TODO: call exchanger API to send buy order
-    global __localBuyOperations, __localSellOperations
-    Log.Info(__logFile,"Send Buy Order, operationId:{} buyPrice:{} buyAmount:{}".format(operationId,buyPrice,buyAmount))
-    currTime = TimeUtil.GetShanghaiTime()
+    if __SendLocalBuy(buyPrice,buyAmount,operationId) == True:
+        __SendExchangerBuy(buyPrice,buyAmount,operationId)
 
-    # 先本地下单  def __init__(self,orderType,orderTime,price,amount,operationId):
-    buyOperation = OrderOperation(1,currTime,buyPrice,buyAmount,operationId)
-    __localBuyOperations.append(buyOrder)
+def SendSell(sellPrice,sellAmount,operationId):
+    if __SendLocalSell(sellPrice,sellAmount,operationId) == True:
+        __SendExchangerSell(sellPrice,sellAmount,operationId)
+    
+
+    
     
 
 
@@ -190,3 +231,6 @@ __SaveHoldBuys()
 __LoadHoldBuy()
 
 """
+
+
+Log.Log.Print("haha")
