@@ -8,6 +8,7 @@ from Utils import IOUtil, Log, TimeUtil
 from datetime import datetime
 import threading
 from AIP.Huobi import HuobiServices
+import BalanceManager
 
 SYMBOL = 'btcusdt'
 
@@ -15,15 +16,23 @@ __logFile = "./Log/order.log"
 __holdBuyFile = './Data/holdBuy'
 __localBuyOrdersFile = './Data/localBuyOrders'
 __localSellOrdersFile = './Data/localSellOrders'
-
-holdBuys = []
+__exchangerBuyOrdersFile = './Data/exchangerBuyOrders'
+__exchangerSellOrdersFile = './Data/exchangerSellOrders'
+__sellingHoldBuyFile = './Data/sellingHoldBuy'
 
 terminated = False
+holdBuys = []
+
+# 正在卖出中的持有 {"operationId":HoldBuy}
+__sellingHoldBuys = {}
 
 # 购买和出售订单本地存储，先本地下单，然后进行网络下单
 # 系统启动的时候，会用所有的本地下单去检查网络下单，进行数据校对
 __localBuyOperations = {}
 __localSellOperations = {}
+
+__exchangerBuyOperations = {}
+__exchangerSellOperations = {}
 
 # 已经归档案的订单
 __archivedOrders = {}
@@ -59,51 +68,21 @@ class OrderOperation:
 
 
 class ExchangerOrderOperation:
-    def __init__(self,orderType,price,amount,operationId,exchangerOrder = None):
+    def __init__(self,orderId,orderType,orderTime,price,amount,operationId,state=''):
+        """
+        orderId: 交易所订单号
+        orderType: 0 卖出，1 买入
+        price: 操作价格
+        amount: 操作数量
+        operationId: 操作ID标识
+        """
+        self.orderId = orderId
         self.orderType = orderType
+        self.orderTime = orderTime
         self.price = price
         self.amount = amount
         self.operationId = operationId
-        self.exchangerOrder = exchangerOrder
-        self.__DoIt()
-
-    def __OrderThread(self):
-        print("Hello:{} {} {} {}".format(self.orderType,self.price,self.amount,self.operationId))
-
-        # 如果第一次下单失败了，就再尝试一次，一共尝试2次
-        # 下单有几种情况，1 超时，2 失败，3 成功
-        for x in range(2):
-            if self.orderType == 0: # 下卖单
-                HuobiServices.send_order(ACCOUNT_ID,self.amount,'api',SYMBOL,'sell-limit',self.price)
-            else if self.orderType == 1: # 下买单
-                pass
-
-    def __CheckThread(self):
-        global terminated
-        while True:   # 如果系统未退出
-            if terminated == True:
-                break
-
-            if self.exchangerOrder != None:
-                pass
-                # check the order status
-
-                # if the order is filled, archiving the order
-            time.sleep(2)
-
-            
-    
-
-
-    def __DoIt(self):
-        if self.exchangerOrder == None:
-            t = threading.Thread(target=self.__WorkThread)
-            t.setDaemon(True)
-            t.start()
-        
-        t1 = threading.Thread(target=self.__CheckThread)
-        t1.setDaemon(True)
-        t1.start()
+        self.state = state
 
 
 def __HoldBuyObj2Json(obj):
@@ -162,7 +141,80 @@ def __OrderOperationJson2Obj(jsonData):
     price = jsonData['price']
     amount = jsonData['amount']
     operationId = jsonData['operationId']
-    return OrderOperation(orderType,orderTime,price,amount,operationId)    
+    return OrderOperation(orderType,orderTime,price,amount,operationId)
+
+
+def __SellingHoldBuy2Json(obj):
+    """
+    将正在出售的持有买单转为Json字符串
+    """
+    return {
+        "orderId":obj.orderId,
+        "buyTime":obj.buyTime.strftime("%Y-%m-%d %H:%M:%S"),
+        "buyPrice":obj.buyPrice,
+        "buyAmount":obj.buyAmount,
+        "filledAmount":obj.filledAmount,
+        "finalCost":obj.finalCost
+    }
+
+def __SellingHoldBuyJson2Obj(jsonData):
+    """
+    Json字符串解析为正在出售的持有买单
+    """
+    if len(jsonData) == 0:
+        return {}
+
+    if isinstance(jsonData,dict):
+        for key in jsonData:
+            item = jsonData[key]
+            if isinstance(item,HoldBuy):
+                return jsonData
+
+    orderId = jsonData['orderId']
+    buyTime = datetime.strptime(jsonData['buyTime'],"%Y-%m-%d %H:%M:%S")
+    buyPrice = jsonData['buyPrice']
+    buyAmount = jsonData['buyAmount']
+    filledAmount = jsonData['filledAmount']
+    finalCost = jsonData['finalCost']
+    return HoldBuy(orderId,buyTime,buyPrice,buyAmount,filledAmount,finalCost)
+
+
+def __ExchangerOrderOperation2Json(obj):
+    """
+    交易所订单操作转为Json字符串
+    """
+    return {
+        "orderId":obj.orderId,
+        "orderType":obj.orderType,
+        "orderTime":obj.orderTime.strftime("%Y-%m-%d %H:%M:%S"),
+        "price":obj.price,
+        "amount":obj.amount,
+        "operationId":obj.operationId,
+        "state":obj.state
+    }
+
+def __ExchangerOrderOperationJson2Obj(jsonData):
+    """
+    Json字符串解析为交易所订单操作
+    """
+    if len(jsonData) == 0:
+        return {}
+
+    if isinstance(jsonData,dict):
+        for key in jsonData:
+            item = jsonData[key]
+            if isinstance(item,ExchangerOrderOperation):
+                return jsonData
+
+    orderId = jsonData['orderId']
+    orderType = jsonData['orderType']
+    orderTime = datetime.strptime(jsonData['orderTime'],"%Y-%m-%d %H:%M:%S")
+    price = jsonData['price']
+    amount = jsonData['amount']
+    operationId = jsonData['operationId']
+    state = jsonData['state']
+    return ExchangerOrderOperation(orderId,orderType,orderTime,price,amount,operationId,state)
+
 
 def __LoadHoldBuy():
     """
@@ -251,8 +303,34 @@ def __SaveLocalSellOperations():
     __SaveLocalOperations(__localSellOperations,__localSellOrdersFile)
 
 
+def __LoadExchangerOperations():
+    pass
+
+def __SaveExchangerOperations():
+    pass
+
+def __LoadExchangerBuyOperations():
+    pass
+
+def __SaveExchangerBuyOperations():
+    pass
+
+def __LoadExchangerSellOperations():
+    pass
+
+def __SaveExchangerSellOperations():
+    pass
+
+def __LoadSellingHoldBuys():
+    pass
+
+def __SaveSellingHoldBuys():
+    pass
+
 def __SendLocalBuy(buyPrice,buyAmount,operationId):
-    # 先本地下单
+    """
+    进行本地下买单
+    """
     global __localBuyOperations
     currTime = TimeUtil.GetShanghaiTime()
     buyOperation = OrderOperation(1,currTime,buyPrice,buyAmount,operationId)
@@ -268,7 +346,9 @@ def __SendLocalBuy(buyPrice,buyAmount,operationId):
     return False
 
 def __SendLocalSell(sellPrice,sellAmount,operationId):
-    # 下本地卖单
+    """
+    进行本地下卖单
+    """
     global __localSellOperations
     currTime = TimeUtil.GetShanghaiTime()
     sellOperation = OrderOperation(0,currTime,sellPrice,sellAmount,operationId)
@@ -283,17 +363,212 @@ def __SendLocalSell(sellPrice,sellAmount,operationId):
         Log.Info(__logFile,"ERROR: Send local sell operation faild, already has operation:{}".format(operationId))
     return False
 
+
+
+def __ExchangerOrderSendResultHandle(jsonData):
+    """
+    交易所下单结果处理函数
+    """
+    try:
+        status = jsonData['status']
+        if status == 'ok':
+            orderId = jsonData['data']
+            Log.Print("SUCCESS! Order Send, orderId:{}".format(orderId))
+            Log.Info("SUCCESS! Order Send, orderId:{}".format(orderId))
+            return orderId
+        else:
+            Log.Print("FAILD! Order Send, status:{} rawData:{}".format(status,jsonData))
+            Log.Info("FAILD！Order Send, status:{} rawData:{}".format(status,jsonData))
+    except Exception as e:
+        Log.Print("EXCEPTION: Parse order send result data faild: rawData:{}".format(jsonData))
+        Log.Info("EXCEPTION: Parse order send result data faild: rawData:{}".format(jsonData))
+    return None
+
 def __SendExchangerBuy(buyPrice,buyAmount,operationId):
     """
     与交易所通信，下买单
     """
-    Log.Print("Send Exchanger Buy: operationId:{} buyPrice:{} buyAmount:{}".format(operationId,buyPrice,buyAmount))
+    global __exchangerBuyOperations, __localBuyOperations
+    Log.Print("Sending Exchanger Buy: operationId:{} buyPrice:{} buyAmount:{}".format(operationId,buyPrice,buyAmount))
+    Log.Info("Sending Exchanger Buy: operationId:{} buyPrice:{} buyAmount:{}".format(operationId,buyPrice,buyAmount))
+
+    # 尝试2次
+    for x in range(2):
+        orderData = None
+        try:
+            orderData = HuobiServices.send_order(buyAmount,'api',SYMBOL,'buy-limit',buyPrice)
+        except Exception as e:
+            orderData = None
+            Log.Print("EXCEPTION: operationId:{} send buy faild! {}".format(operationId,str(e)))
+            Log.Info(__logFile,"EXCEPTION: operationId:{} send buy faild! {}".format(operationId,str(e)))
+
+        if orderData != None:
+            orderId = __ExchangerOrderSendResultHandle(orderData)
+            if orderId != None:
+                # 下单成功
+                break
+
+    if orderId != None:
+        # 下买单成功，保存交易所下单数据
+        currTime = TimeUtil.GetShanghaiTime()
+        exchangerBuyOperation = ExchangerOrderOperation(orderId,1,currTime,buyPrice,buyAmount,operationId)
+        if __exchangerBuyOperations.__contains__(operationId) == False:
+            __exchangerBuyOperations[operationId] = exchangerBuyOperation
+            __SaveExchangerBuyOperations()
+        else:
+            Log.Print("ERROR: Send Exchanger buy operation faild, already has operation:{}".format(operationId))
+            Log.Info(__logFile,"ERROR: Send Exchanger buy operation faild, already has operation:{}".format(operationId))
+    else:
+        Log.Print("Action: Send Exchanger Buy Order Faild , Fallback Quote Balance! operationId:{}".operationId)
+        Log.Info("Action: Send Exchanger Buy Order Faild , Fallback Quote Balance! operationId:{}".operationId)
+        # 下单失败，回滚本地下单数据
+        localBuyOperation = __localBuyOperations.get(operationId)
+        if localBuyOperation != None:
+            fallbackBalance = localBuyOperation.amount * localBuyOperation.price
+            BalanceManager.BuyOperationFallback(fallbackBalance)
+            del __localBuyOperations[operationId]
+            __SaveLocalBuyOperations()
+            Log.Print("SUCCESS! Fallback Quote Balance! operationId:{}".format(operationId))
+            Log.Info("SUCCESS! Fallback Quote Balance! operationId:{}".format(operationId))
+        else:
+            Log.Print("ERROR! Can not fallback local buy operation! operation:{}".format(operationId))
+            Log.Info("ERROR! Can not fallback local buy operation! operation:{}".format(operationId))
+
+
 
 def __SendExchangerSell(sellPrice,sellAmount,operationId):
     """
     与交易所通信，下卖单
     """
-    Log.Print("Send Exchanger Sell: operationId:{} sellPrice:{} sellAmount:{}".format(operationId,sellPrice,sellAmount))
+    global __exchangerSellOperations, __sellingHoldBuys
+    #Log.Print("Send Exchanger Sell: operationId:{} sellPrice:{} sellAmount:{}".format(operationId,sellPrice,sellAmount))
+    Log.Print("Sending Exchanger Sell: operationId:{} sellPrice:{} sellAmount:{}".format(operationId,sellPrice,sellAmount))
+    Log.Info("Sending Exchanger Sell: operationId:{} sellPrice:{} sellAmount:{}".format(operationId,sellPrice,sellAmount))
+
+    for x in range(2):
+        orderData = None
+        try:
+            orderData = HuobiServices.send_order(sellAmount,'api',SYMBOL,'sell-limit',sellPrice)
+        except Exception as e:
+            orderData = None
+            Log.Print("EXCEPTION: operationId:{} send Sell faild! {}".format(operationId,str(e)))
+            Log.Info(__logFile,"EXCEPTION: operationId:{} send Sell faild! {}".format(operationId,str(e)))
+
+            if orderData != None:
+                orderId = __ExchangerOrderSendResultHandle(orderData)
+                if orderId != None:
+                    # 下单成功
+                    break
+
+    if orderId != None:
+        # 下卖单成功，保存交易所下单数据
+        currTime = TimeUtil.GetShanghaiTime()
+        exchangerSellOperation = ExchangerOrderOperation(orderId,0,currTime,sellPrice,sellAmount,operationId)
+        if __exchangerSellOperations.__contains__(operationId) == False:
+            __exchangerSellOperations[operationId] = exchangerBuyOperation
+            __SaveExchangerSellOperations()
+        else:
+            Log.Print("ERROR: Send Exchanger sell operation faild! already has operation:{}".format(operationId))
+            Log.Info(__logFile,"ERROR: Send Exchanger sell operation faild! already has operation:{}".format(operationId))
+    else:
+        Log.Print("Action: Send Exchanger Sell Order Faild, Fallback balance, operation:{}".format(operationId))
+        Log.Info(__logFile,"Action: Send Exchanger Sell Order Faild, Fallback balance, operation:{}".format(operationId))
+        # 因为卖的是持有购买，只有成效了，才会造成base数据的改变，所以这里不需要回滚Balance
+
+        # 但是要删除本地的卖单，然后将正在出售的持有放回原本持有
+        del __localSellOperations[operationId]
+        holdBuy = __sellingHoldBuys.get(operationId,None)
+        if holdBuy != None:
+            del __sellingHoldBuys[operationId]
+            holdBuys.append(holdBuy)
+        else:
+            Log.Print("ERROR! Fallback faild! Can not found selling hold, operation:{}".format(operationId))
+            Log.Info(__logFile,"ERROR! Fallback faild! Can not found selling hold, operation:{}".format(operationId))
+        
+        __SaveLocalSellOperations()
+        __SaveSellingHoldBuys()
+
+        
+
+def __OrderStateCheckThread():
+    global __exchangerBuyOperations, __exchangerSellOperations, holdBuys, __localBuyOperations, __localSellOperations, sellingHoldBuy
+    while(True):
+        # 检查买单是否被成交
+        for key in __exchangerBuyOperations:
+            operation = __exchangerBuyOperations[key]
+            if operation.state == 'end':
+                continue
+
+            orderId = operation.orderId
+            try:
+                jsonData = HuobiServices.order_info(orderId)
+                status = jsonData['status']
+                if status == 'ok':
+                    state = jsonData['data']['state']
+                    if state == 'filled': # 完全成交
+                        # 买单成交，删除本地买单，删除交易所买单，增加持有买单，修改资产总量，保存数据
+                        operation.state = 'end'
+                        amount = operation.amount * 0.997
+                        amount = float("{:.4f}".format(amount))
+                        
+                        # 为了省事，这里多加0.3 usdt
+                        cost = int(operation.amount * operation.price) + 0.3
+                        
+                        holdBuy = HoldBuy(orderId,operation.orderTime,operation.price,amount,amount,cost)
+                        holdBuys.append(holdBuy)
+                        __SaveHoldBuys()
+                        __SaveExchangerBuyOperations()
+
+                        
+
+                        Log.Print("FILLED! Buy Order Filled: orderId:{} amount:{} cost:{} operationId:{}".format(orderId,amount,cost,operation.operationId))
+                        Log.Info(__logFile,"FILLED! Buy Order Filled: orderId:{} amount:{} cost:{} operationId:{}".format(orderId,amount,cost,operation.operationId))
+                    elif state == 'submitted': # 挂单中
+                        pass
+                    elif state == 'canceled': # 订单被取消
+                        pass
+                else:
+                    Log.Print("FAILD RESULT - Check Order Info: status:{} rawJson:{}".format(status,jsonData))
+            except Exception e:
+                Log.Print("Exception: Check buy order state faild: orderId{}".format(orderId))
+
+            time.sleep(0.3) # 每检查一个单，停顿0.3秒
+
+        # 找到所有已经end的买单，从数据中踢除
+        endedOperations = []
+        for key in __exchangerBuyOperations:
+            operation = __exchangerBuyOperations[key]
+            if operation.state == 'end':
+                endedOperations.append(operation.operationId)
+
+        for opId in endedOperations:
+            del __exchangerBuyOperations[opId]
+            del __localBuyOperations[opId]
+        
+        __SaveExchangerBuyOperations()
+        __SaveLocalBuyOperations()
+
+
+        # 检查所有的卖单是否被成交
+        for key in __exchangerSellOperations:
+            operation = __exchangerSellOperations[key]
+            if operation.state == 'end':
+                continue
+            orderId = operation.orderId
+            try:
+                jsonData = HuobiServices.order_info(orderId)
+                status = jsonData['status']
+                if status == 'ok':
+                    state = jsonData['data']['state']
+                    if state == 'filled':
+                        pass
+
+                else:
+                    pass
+            
+
+
+
 
 def __ProofreadData():
     pass
@@ -303,6 +578,7 @@ def SendBuy(buyPrice,buyAmount,operationId):
     # TODO: call exchanger API to send buy order
     if __SendLocalBuy(buyPrice,buyAmount,operationId) == True:
         __SendExchangerBuy(buyPrice,buyAmount,operationId)
+        
 
 def SendSell(sellPrice,sellAmount,operationId):
     if __SendLocalSell(sellPrice,sellAmount,operationId) == True:

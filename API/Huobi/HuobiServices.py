@@ -14,6 +14,8 @@ Market data API
 
 ACCOUNT_ID = ""
 
+__precisions = {}
+
 def init_key(access_key,secret_key):
     set_key(access_key,secret_key)
     
@@ -21,6 +23,30 @@ def init_account(account_id):
     global ACCOUNT_ID
     ACCOUNT_ID = account_id
     print("ACCOUNT_ID:",ACCOUNT_ID)
+
+def init_symbols():
+    global __precisions
+    jsonData = get_symbols()
+    for item in jsonData['data']:
+        baseCurrency = item['base-currency']
+        quoteCurrency = item['quote-currency']
+        symbol = baseCurrency + quoteCurrency
+        pricePrecision = item['price-precision']
+        amountPrecision = item['amount-precision']
+
+        value = {'amountPrecision':amountPrecision,'pricePrecision':pricePrecision}
+        __precisions[symbol] = value
+
+
+def get_price_precision(symbol):
+    if __precisions.__contains__(symbol):
+        return __precisions[symbol]['pricePrecision']
+    return None
+
+def get_amount_precision(symbol):
+    if __precisions.__contains__(symbol):
+        return __precisions[symbol]['amountPrecision']
+    return None
 
 # 获取KLine
 def get_kline(symbol, period, size=150):
@@ -125,6 +151,23 @@ def get_accounts():
     params = {}
     return api_key_get(params, path)
 
+
+def get_spot_balance(currency = None):
+    acct_id = ACCOUNT_ID
+    url = "/v1/account/accounts/{0}/balance".format(acct_id)
+    params = {"account-id": acct_id}
+    jsonData = api_key_get(params, url)
+    if currency == None:
+        return jsonData
+    else:
+        balance = {}
+        for item in jsonData['data']['list']:
+            if item['currency'] == currency:
+                balance[item['type']] = float("{:.8f}".format(float(item['balance'])))
+
+            if len(balance) == 2:
+                break
+        return balance
 
 # 获取当前账户资产
 def get_balance(acct_id=None):

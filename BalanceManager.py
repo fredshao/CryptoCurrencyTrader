@@ -41,7 +41,21 @@ def __SaveBalance():
     IOUtil.WriteTextToFile(__balanceFile,balanceData)
 
 
+def BuyOperationFallback(quoteBalance):
+    """
+    买入操作，撤单，资金回退
+    """
+    global __quoteBalance
+    __quoteBalance += quoteBalance
+    __SaveBalance()
 
+def SellOperationFallback(baseBalance):
+    """
+    卖出操作，撤单，资金回退
+    """
+    global __baseBalance
+    __baseBalance += baseBalance
+    __SaveBalance()
 
 
 def Start():
