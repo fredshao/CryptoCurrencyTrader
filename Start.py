@@ -113,9 +113,13 @@ def OrderInfoHandle(jsonData):
 
 #OrderInfoHandle(orderData)
 
-orderData = HuobiServices.cancel_order('1876107434')
-print(orderData)
+#orderData = HuobiServices.cancel_order('1876107434')
+#print(orderData)
 
-orderData = HuobiServices.order_info('1876107434')
+#orderData = HuobiServices.order_info('1876107434')
+#print(orderData)
+#OrderInfoHandle(orderData)
+
+#orderData = HuobiServices.send_order(1,'api','xrpusdt','sell-limit',0.9292)
+orderData = HuobiServices.order_info('1890939035')
 print(orderData)
-OrderInfoHandle(orderData)

@@ -58,6 +58,24 @@ def SellOperationFallback(baseBalance):
     __SaveBalance()
 
 
+def BuyFilled(baseAmount):
+    """
+    买入成交，base增加
+    """
+    global __baseBalance
+    __baseBalance += baseAmount
+    __SaveBalance()
+
+
+def SellFilled(quoteAmount,profit):
+    """
+    卖出成交，quote增加
+    """
+    global __quoteBalance
+    __quoteBalance += quoteAmount
+    __SaveBalance()
+
+
 def Start():
     __LoadBalance()
 

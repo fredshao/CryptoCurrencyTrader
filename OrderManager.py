@@ -84,6 +84,9 @@ class ExchangerOrderOperation:
         self.operationId = operationId
         self.state = state
 
+    def __str__(self):
+        return "ExchangerOperation: orderId:{} orderType:{} orderTime:{} price:{} amount:{} operationId:{} state:{}".format(self.orderId,self.orderType,self.orderTime,self.price,self.amount,self.operationId,self.state)
+
 
 def __HoldBuyObj2Json(obj):
     """
@@ -256,7 +259,7 @@ def __LoadLocalOperations(fileName):
             Log.Info(__logFile,"Fatal Error, Can not load local operation! " + fileName)
             sys.exit()
 
-    return []
+    return {}
 
 def __SaveLocalOperations(operations, fileName):
     """
@@ -271,7 +274,7 @@ def __LoadLocalBuyOperations():
     """
     global __localBuyOperations
     __localBuyOperations = __LoadLocalOperations(__localBuyOrdersFile)
-    print("Local Buy Operations Loaded:")
+    Log.Print("Local Buy Operations Loaded:")
     for key in __localBuyOperations:
         print(__localBuyOperations[key])
     print("")
@@ -303,29 +306,86 @@ def __SaveLocalSellOperations():
     __SaveLocalOperations(__localSellOperations,__localSellOrdersFile)
 
 
-def __LoadExchangerOperations():
-    pass
+def __LoadExchangerOperations(fileName):
+    """
+    加载交易所订单操作记录
+    """
+    if os.path.exists(fileName):
+        try:
+            jsonStr = IOUtil.ReadTextFromFile(fileName)
+            exchangerOperations = json.loads(jsonStr,object_hook=__ExchangerOrderOperationJson2Obj)
+            return exchangerOperations
+        except Exception as e:
+            Log.Print("Fatal Error, Load Exchanger operation faild! ",e,fileName)
+            Log.Info(__logFile,"Fatal Error, Load Exchanger Operation faild! {} {}".format(str(e),fileName))
+            sys.exit()
+    return {}
 
-def __SaveExchangerOperations():
-    pass
+def __SaveExchangerOperations(operations, fileName):
+    """
+    将交易所订单操作保存到文件
+    """
+    jsonStr = json.dump(operations,default=__ExchangerOrderOperation2Json)
+    IOUtil.WriteTextToFile(fileName,jsonStr)
 
 def __LoadExchangerBuyOperations():
-    pass
+    """
+    加载交易所买入订单操作
+    """
+    global __exchangerBuyOperations
+    __exchangerBuyOperations = __LoadExchangerOperations(__exchangerBuyOrdersFile)
+    Log.Print("Exchanger Buy Operations Loaded")
+    for key in __exchangerBuyOperations:
+        print(__exchangerBuyOperations[key])
+    print("")
 
 def __SaveExchangerBuyOperations():
-    pass
+    """
+    保存交易所买入订单操作
+    """
+    global __exchangerBuyOperations
+    __SaveExchangerBuyOperation(__exchangerBuyOperations,__exchangerBuyOrdersFile)
 
 def __LoadExchangerSellOperations():
-    pass
+    """
+    加载交易所卖出订单操作
+    """
+    global __exchangerSellOperations
+    __exchangerSellOperations = __LoadExchangerOperations(__exchangerSellOrdersFile)
+    Log.Print("Exchanger Sell Operations Loaded")
+    for key in __exchangerSellOperations:
+        print(__exchangerSellOperations[key])
+    print("")
 
 def __SaveExchangerSellOperations():
-    pass
+    """
+    保存交易所卖出订单操作
+    """
+    global __exchangerSellOperations
+    __SaveExchangerOperations(__exchangerSellOrdersFile,__exchangerSellOrdersFile)
+
 
 def __LoadSellingHoldBuys():
-    pass
+    """
+    加载正在出售的持有
+    """
+    global __sellingHoldBuys
+    if os.path.exists(__sellingHoldBuyFile):
+        try:
+            jsonStr = IOUtil.ReadTextFromFile(fileName)
+            __sellingHoldBuys = json.loads(jsonStr,object_hook=__SellingHoldBuyJson2Obj)
+        except Exception as e:
+            Log.Print("Fatal Error, Load Selling Hold Buys faild! {}".format(e))
+            Log.Info(__logFile,"Fatal Error, Load Selling Hold Buys faild! {}".format(e))
+            sys.exit()
 
 def __SaveSellingHoldBuys():
-    pass
+    """
+    保存正在出售的持有
+    """
+    global __sellingHoldBuys
+    jsonStr = json.dump(__sellingHoldBuys,default=__SellingHoldBuy2Json)
+    IOUtil.WriteTextToFile(__sellingHoldBuyFile,jsonStr)
 
 def __SendLocalBuy(buyPrice,buyAmount,operationId):
     """
@@ -488,90 +548,138 @@ def __SendExchangerSell(sellPrice,sellAmount,operationId):
         __SaveLocalSellOperations()
         __SaveSellingHoldBuys()
 
+
+def __CheckBuyOrdersState():
+    """
+    检查所有的买单状态，是否已经成交
+    """
+    global __exchangerBuyOperations, holdBuys, __localBuyOperations
+    for key in __exchangerBuyOperations:
+        operation = __exchangerBuyOperations[key]
+        if operation.state == 'end':
+            continue
+
+        orderId = operation.orderId
+        try:
+            sonData = HuobiServices.order_info(orderId)
+            status = jsonData['status']
+            if status == 'ok':
+                state = jsonData['data']['state']
+                if state == 'filled': # 完全成交
+                    # 买单成交，删除本地买单，删除交易所买单，增加持有买单，修改资产总量，保存数据
+                    operation.state = 'end'
+                    amount = operation.amount * 0.997
+                    amount = float("{:.4f}".format(amount))
+                        
+                    # 为了省事，这里多加0.3 usdt
+                    cost = int(operation.amount * operation.price) + 0.3
+                        
+                    holdBuy = HoldBuy(orderId,operation.orderTime,operation.price,amount,amount,cost)
+                    holdBuys.append(holdBuy)
+                    __SaveHoldBuys()
+                    __SaveExchangerBuyOperations()
+
+                    BalanceManager.BuyFilled(amount)
+
+                    Log.Print("FILLED! Buy Order Filled: orderId:{} amount:{} cost:{} operationId:{}".format(orderId,amount,cost,operation.operationId))
+                    Log.Info(__logFile,"FILLED! Buy Order Filled: orderId:{} amount:{} cost:{} operationId:{}".format(orderId,amount,cost,operation.operationId))
+                elif state == 'submitted': # 挂单中
+                    pass
+                elif state == 'canceled': # 订单被取消
+                    pass
+            else:
+                Log.Print("FAILD RESULT - Check Order Info: status:{} rawJson:{}".format(status,jsonData))
+        except Exception e:
+            Log.Print("Exception: Check buy order state faild: orderId:{}".format(orderId))
+
+        time.sleep(0.3) # 每检查一个单，停顿0.3秒
+
+        # 找到所有已经end的买单，从数据中踢除
+    endedOperations = []
+    for key in __exchangerBuyOperations:
+        operation = __exchangerBuyOperations[key]
+        if operation.state == 'end':
+            endedOperations.append(operation.operationId)
+
+    for opId in endedOperations:
+        del __exchangerBuyOperations[opId]
+        del __localBuyOperations[opId]
         
+    __SaveExchangerBuyOperations()
+    __SaveLocalBuyOperations()
+
+
+def __CheckSellOrdersState():
+    """
+    检查所有的卖单是否被成交
+    """
+    # 如果卖单被成交了，踢除本地卖单，踢除交易所卖单，踢除对应的持有，修改资金，保存数据
+    global __exchangerSellOperations, holdBuys, __localSellOperations, sellingHoldBuy
+    for key in __exchangerSellOperations:
+        operation = __exchangerSellOperations[key]
+        if operation.state == 'end':
+            continue
+        orderId = operation.orderId
+        operationId = operation.operationId
+        try:
+            jsonData = HuobiServices.order_info(orderId)
+            status = jsonData['status']
+            if status == 'ok':
+                state = jsonData['data']['state']
+                if state == 'filled':
+                    operation.state = 'end'
+                    filledCash = float(jsonData['data']['field-cash-amount']) * 0.997
+                    holdBuy = __sellingHoldBuys.get(operationId,None)
+                    profit = filledCash - holdBuy.finalCost
+                    BalanceManager.SellFilled(filledCash,profit)
+                    __SaveExchangerSellOperations()
+
+                    Log.Print("FILLED! Sell Order Filled: orderId:{} profit:{} operationId:{}".format(orderId,profit,operationId))
+                    Log.Info(__logFile,"FILLED! Sell Order Filled: orderId:{} profit:{} operationId:{}".format(orderId,profit,operationId))
+            else:
+                Log.Print("FAILD RESULT - Check Order Info: status:{} rawJson:{}".format(status,jsonData))
+        except Exception e:
+            Log.Print("Exception: Check sell order state filled: orderId:{}".format(orderId))
+
+        time.sleep(0.3)
+
+    endedOperations = []
+    for key in __exchangerSellOperations:
+        operation = __exchangerSellOperations[key]
+        if operation.state == 'end':
+            endedOperations.append(operation.operationId)
+
+    for opId in endedOperations:
+        del __exchangerSellOperations[opId]
+        del __localSellOperations[opId]
+        del __sellingHoldBuys[opId]
+
+    __SaveExchangerSellOperations()
+    __SaveLocalSellOperations()
+    __SaveSellingHoldBuys()
+
 
 def __OrderStateCheckThread():
     global __exchangerBuyOperations, __exchangerSellOperations, holdBuys, __localBuyOperations, __localSellOperations, sellingHoldBuy
     while(True):
-        # 检查买单是否被成交
-        for key in __exchangerBuyOperations:
-            operation = __exchangerBuyOperations[key]
-            if operation.state == 'end':
-                continue
-
-            orderId = operation.orderId
-            try:
-                jsonData = HuobiServices.order_info(orderId)
-                status = jsonData['status']
-                if status == 'ok':
-                    state = jsonData['data']['state']
-                    if state == 'filled': # 完全成交
-                        # 买单成交，删除本地买单，删除交易所买单，增加持有买单，修改资产总量，保存数据
-                        operation.state = 'end'
-                        amount = operation.amount * 0.997
-                        amount = float("{:.4f}".format(amount))
-                        
-                        # 为了省事，这里多加0.3 usdt
-                        cost = int(operation.amount * operation.price) + 0.3
-                        
-                        holdBuy = HoldBuy(orderId,operation.orderTime,operation.price,amount,amount,cost)
-                        holdBuys.append(holdBuy)
-                        __SaveHoldBuys()
-                        __SaveExchangerBuyOperations()
-
-                        
-
-                        Log.Print("FILLED! Buy Order Filled: orderId:{} amount:{} cost:{} operationId:{}".format(orderId,amount,cost,operation.operationId))
-                        Log.Info(__logFile,"FILLED! Buy Order Filled: orderId:{} amount:{} cost:{} operationId:{}".format(orderId,amount,cost,operation.operationId))
-                    elif state == 'submitted': # 挂单中
-                        pass
-                    elif state == 'canceled': # 订单被取消
-                        pass
-                else:
-                    Log.Print("FAILD RESULT - Check Order Info: status:{} rawJson:{}".format(status,jsonData))
-            except Exception e:
-                Log.Print("Exception: Check buy order state faild: orderId{}".format(orderId))
-
-            time.sleep(0.3) # 每检查一个单，停顿0.3秒
-
-        # 找到所有已经end的买单，从数据中踢除
-        endedOperations = []
-        for key in __exchangerBuyOperations:
-            operation = __exchangerBuyOperations[key]
-            if operation.state == 'end':
-                endedOperations.append(operation.operationId)
-
-        for opId in endedOperations:
-            del __exchangerBuyOperations[opId]
-            del __localBuyOperations[opId]
-        
-        __SaveExchangerBuyOperations()
-        __SaveLocalBuyOperations()
-
-
-        # 检查所有的卖单是否被成交
-        for key in __exchangerSellOperations:
-            operation = __exchangerSellOperations[key]
-            if operation.state == 'end':
-                continue
-            orderId = operation.orderId
-            try:
-                jsonData = HuobiServices.order_info(orderId)
-                status = jsonData['status']
-                if status == 'ok':
-                    state = jsonData['data']['state']
-                    if state == 'filled':
-                        pass
-
-                else:
-                    pass
-            
-
-
+        __CheckBuyOrdersState()
+        __CheckSellOrdersState()
 
 
 def __ProofreadData():
-    pass
+    """
+    检查以前下的订单是否已经成交，如果已经成交，则归档
+    """
+    Log.Print("Start Proofread Data...")
+    __CheckBuyOrdersState()
+    __CheckSellOrdersState()
+    Log.Print("Proofread Data Finished!")
+
+
+def __StartOrderCheck():
+    t = threading.Thread(target=__OrderStateCheckThread)
+    t.setDaemon(True)
+    t.start()
 
 
 def SendBuy(buyPrice,buyAmount,operationId):
@@ -585,17 +693,16 @@ def SendSell(sellPrice,sellAmount,operationId):
         __SendExchangerSell(sellPrice,sellAmount,operationId)
     
 
-'''
+
 def Start():
     __LoadHoldBuy()
     __LoadLocalBuyOperations()
     __LoadLocalSellOperations()
+    __LoadExchangerBuyOperations()
+    __LoadExchangerSellOperations()
+    __LoadSellingHoldBuys()
     __ProofreadData()
-'''
+    __StartOrderCheck()
 
-
-#operation = ExchangerOrderOperation(0,11011,0.11,str(time.time()))
-
-#time.sleep(5)
 
 
