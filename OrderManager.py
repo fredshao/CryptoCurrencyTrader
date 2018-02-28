@@ -4,7 +4,7 @@ import json
 import sys
 import os
 import time
-from Utils import IOUtil, Log, TimeUtil
+from Utils import IOUtil, Log, TimeUtil,MathUtil
 from datetime import datetime
 import threading
 from API.Huobi import HuobiServices
@@ -448,7 +448,7 @@ def __ExchangerOrderSendResultHandle(jsonData):
         Log.Info("EXCEPTION: Parse order send result data faild: rawData:{}".format(jsonData))
     return None
 
-def __SendExchangerBuy(buyPrice,buyAmount,operationId):
+def __SendExchangerBuy(buyPrice,buyAmount,costQuote,operationId):
     """
     与交易所通信，下买单
     """
@@ -488,8 +488,7 @@ def __SendExchangerBuy(buyPrice,buyAmount,operationId):
         # 下单失败，回滚本地下单数据
         localBuyOperation = __localBuyOperations.get(operationId)
         if localBuyOperation != None:
-            fallbackBalance = localBuyOperation.amount * localBuyOperation.price
-            BalanceManager.BuyOperationFallback(fallbackBalance)
+            BalanceManager.BuyFallback(costQuote)
             del __localBuyOperations[operationId]
             __SaveLocalBuyOperations()
             Log.Print("SUCCESS! Fallback Quote Balance! operationId:{}".format(operationId))
@@ -551,6 +550,7 @@ def __SendExchangerSell(sellPrice,sellAmount,operationId):
         
         __SaveLocalSellOperations()
         __SaveSellingHoldBuys()
+        __SaveHoldBuys
 
 
 def __CheckBuyOrdersState():
@@ -573,17 +573,16 @@ def __CheckBuyOrdersState():
                     # 买单成交，删除本地买单，删除交易所买单，增加持有买单，修改资产总量，保存数据
                     operation.state = 'end'
                     amount = operation.amount * 0.997
-                    amount = float("{:.4f}".format(amount))
-                        
-                    # 为了省事，这里多加0.3 usdt
-                    cost = int(operation.amount * operation.price) + 0.3
+                    amount = MathUtil.GetPrecision(amount)
+                    
+                    cost = MathUtil.GetPrecision(operation.amount * operation.price,2)
                         
                     holdBuy = HoldBuy(orderId,operation.orderTime,operation.price,amount,amount,cost)
                     holdBuys.append(holdBuy)
                     __SaveHoldBuys()
                     __SaveExchangerBuyOperations()
 
-                    BalanceManager.BuyFilled(amount)
+                    BalanceManager.BuyFilled(cost,amount)
 
                     Log.Print("FILLED! Buy Order Filled: orderId:{} amount:{} cost:{} operationId:{}".format(orderId,amount,cost,operation.operationId))
                     Log.Info(__logFile,"FILLED! Buy Order Filled: orderId:{} amount:{} cost:{} operationId:{}".format(orderId,amount,cost,operation.operationId))
@@ -632,7 +631,7 @@ def __CheckSellOrdersState():
                 state = jsonData['data']['state']
                 if state == 'filled':
                     operation.state = 'end'
-                    filledCash = float(jsonData['data']['field-cash-amount']) * 0.997
+                    filledCash = MathUtil.GetPrecision(float(jsonData['data']['field-cash-amount']) * 0.997,2)
                     holdBuy = __sellingHoldBuys.get(operationId,None)
                     profit = filledCash - holdBuy.finalCost
                     BalanceManager.SellFilled(filledCash,profit)
@@ -686,10 +685,10 @@ def __StartOrderCheck():
     t.start()
 
 
-def SendBuy(buyPrice,buyAmount,operationId):
+def SendBuy(buyPrice,buyAmount,costQuote,operationId):
     # TODO: call exchanger API to send buy order
     if __SendLocalBuy(buyPrice,buyAmount,operationId) == True:
-        __SendExchangerBuy(buyPrice,buyAmount,operationId)
+        __SendExchangerBuy(buyPrice,buyAmount,costQuote,operationId)
         
 
 def SendSell(sellPrice,sellAmount,operationId):

@@ -70,8 +70,7 @@ def Buy(price):
     global __totalQuote,__tradePart, __quoteBalance,__frozeQuoteBalance
     
     # 计算每次买入多少 usdt 的 btc
-    costQuote = float("{:.2f}".format(__totalQuote / __tradePart))
-
+    costQuote = MathUtil.GetPrecision(__totalQuote / __tradePart,2)
     if __quoteBalance > costQuote: # 资金足够，可以购买
         __LogBalance("Before Buy Action")
         __quoteBalance -= costQuote
@@ -79,7 +78,7 @@ def Buy(price):
 
         # 计算要花费的 usdt 按现在的价格能买多少 btc
         buyAmount = costQuote / price
-        buyAmount = float("{:.4f}".format(buyAmount))
+        buyAmount = MathUtil.GetPrecision(buyAmount,4)
 
         Log.Print("Buy Info: price:{} costQuote:{} buyAmount:{}".format(price,costQuote,buyAmount))
         Log.Info(__logFile,"Buy Info: price:{} costQuote:{} buyAmount:{}".format(price,costQuote,buyAmount))
