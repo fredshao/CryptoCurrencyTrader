@@ -2,11 +2,69 @@
 
 import DataDownloader
 import BalanceManager
+import OrderManager
 import time
 from Utils import IOUtil, Log
 import os, sys
 import json
 from API.Huobi import HuobiServices
+import numpy as np
+
+
+
+class Probe:
+    """
+    proberType: 0 下降探针，1 上升探针
+    proberLevel: 1~9，依次表示下降幅度
+    proberPrice: 探针触发值
+    """
+    def __init__(self,probeType,probePrice,probeLevel):
+        self.probeType = probeType
+        self.probePrice = probePrice
+        self.probeLevel = probeLevel
+    
+    def Triggered(self,price):
+        if self.probeType == 0: # 下降探针
+            if price < self.probePrice:
+                return True
+            else:
+                return False
+        else: # 上升探针
+            if price > self.probePrice:
+                return True
+            else:
+                return False
+
+
+def SetProbe(price,probeType,lastTriggeredProbe = None):
+    if probeType == 0:
+        # 设置下降探针
+        if lastTriggeredProbe != None and lastTriggeredProbe.probeType == 0:
+            lastProbeLevel = lastTriggeredProbe.probeLevel
+            currProbeLevel = lastProbeLevel * 1.2
+        else:
+            currProbeLevel = 150
+            
+        p = Probe(probeType,price - currProbeLevel,currProbeLevel)
+    else:
+        # 布置上升探针
+        if lastTriggeredProbe != None and lastTriggeredProbe.probeType == 1:
+            lastProbeLevel = lastTriggeredProbe.probeLevel
+            currProbeLevel = lastProbeLevel * 1.1
+        else:
+            currProbeLevel = 100
+        p = Probe(probeType,price + currProbeLevel,currProbeLevel)
+        
+    return p
+
+
+def TerminateCheck():
+    if os.path.exists('terminate'):
+        return True
+    else:
+        return False
+
+
 
 def InitSystem():
     """
@@ -33,30 +91,83 @@ def InitSystem():
         sys.exit()
 
 
-def RecoverSystem():
-    pass
-
 def StartSystem():
-    RecoverSystem()
+    """
+    启动各子系统
+    """
     DataDownloader.Start()
     BalanceManager.Start()
 
 
-def DoStrategy():
-    print("Do Strategy")
+def StopSystem():
+    """
+    停止各子系统
+    """
+    OrderManager.Stop()
+    DataManager.Stop()
 
-"""
+def TryToBuy(price):
+    """
+    这里尝试卖出，因为想要尽量快点成交，所以这里比第一卖出价便宜 1 usdt
+    """
+    price -= 1
+    costQuote, buyAmount = BalanceManager.Buy(price)
+
+    if costQuote < 0 or buyAmount < 0:
+        return
+
+    operationId = str(time.time())
+    print("Try To Buy:",operationId,costQuote,buyAmount)
+    OrderManager.SendBuy(price,buyAmount,costQuote,operationId)
+
+
+def TryToSell(price):
+    """
+    这里尝试买入，因为想要尽量快点成交，所以这里比第一买入价贵 1 usdt
+    """
+    price += 1
+    operationId = str(time.time())
+    OrderManager.SellCheck(price,operationId) 
+
+
+
+declineProbe = None
+riseProbe = None
+
+
 if __name__ == '__main__':
     InitSystem()
-    StartModules()
+    StartSystem()
     
     while(True):
-        DoStrategy()
-        time.sleep(1)
+        if TerminateCheck():
+            break
+        if DataDownloader.DataValid():
+            currBidPrice = DataDownloader.realTimeBids[-1]
+            TryToSell(currBidPrice)
 
-"""
+            currAskPrice = DataDownloader.realTimeAsks[-1]
+            if declineProbe == None and riseProbe == None:
+                declineProbe = SetProbe(currAskPrice,0)
+                riseProbe = SetProbe(currAskPrice,1)
+            else:
+                if len(DataDownloader.realTimeAsks) < 60:
+                    time.sleep(0.5)
+                    continue
 
-InitSystem()
+                meanPrice = np.mean(DataDownloader.realTimeAsks[-10:])
+                if declineProbe.Triggered(meanPrice):
+                    declineProbe = SetProbe(currAskPrice,0,declineProbe)
+                    riseProbe = SetProbe(currAskPrice,1)
+                    TryToBuy(currAskPrice)
+                elif riseProbe.Triggered(meanPrice):
+                    declineProbe = SetProbe(currAskPrice,0)
+                    riseProbe = SetProbe(currAskPrice,1,riseProbe)
+        time.sleep(0.5)
+    StopSystem()
+    Log.Print("!!!Terminated System Ready to Shutdown!!!!")
+    time.sleep(20)
+
 
 #print(HuobiServices.get_spot_balance('btc'))
 
@@ -67,6 +178,7 @@ InitSystem()
 {'status': 'ok', 'data': '1876107434'}
 '''
 #orderData = HuobiServices.send_order(1,'api','eosusdt','sell-limit',18)
+'''
 def OrderSendHandle(jsonData):
     try:
         status = jsonData['status']
@@ -82,7 +194,7 @@ def OrderSendHandle(jsonData):
     except Exception as e:
         Log.Print("EXCEPTION: Parse order send result data faild: rawData:{}".format(jsonData))
         # TODO: Log.Info
-
+'''
 #print(orderData)
 #print("")
 #OrderSendHandle(orderData)
@@ -93,6 +205,7 @@ def OrderSendHandle(jsonData):
 {'status': 'ok', 'data': {'id': 1876107434, 'symbol': 'eosusdt', 'account-id': 634980, 'amount': '1.000000000000000000', 'price': '18.000000000000000000', 'created-at': 1519710682948, 'type': 'sell-limit', 'field-amount': '0.0', 'field-cash-amount': '0.0', 'field-fees': '0.0', 'finished-at': 0, 'source': 'api', 'state': 'submitted', 'canceled-at': 0}}
 '''
 
+'''
 def OrderInfoHandle(jsonData):
     try:
         status = jsonData['status']
@@ -109,7 +222,7 @@ def OrderInfoHandle(jsonData):
     except Exception as e:
         Log.Print("EXCEPTION: Parse order info result data faild: rawData:{}".format(jsonData))
         # TODO: Log.Info
-
+'''
 
 #OrderInfoHandle(orderData)
 
@@ -121,5 +234,7 @@ def OrderInfoHandle(jsonData):
 #OrderInfoHandle(orderData)
 
 #orderData = HuobiServices.send_order(1,'api','xrpusdt','sell-limit',0.9292)
+'''
 orderData = HuobiServices.order_info('1890939035')
 print(orderData)
+'''

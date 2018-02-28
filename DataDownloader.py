@@ -8,6 +8,8 @@ import time
 realTimeAsks = []
 realTimeBids = []
 
+__terminated = False
+
 __symbol = 'btcusdt'
 __logFile = "./Log/DataDownloader.log"
 
@@ -48,9 +50,11 @@ def __WorkThread():
     数据下载线程
     如果换成别的交易所，需要改这个函数里的下载那一行代码
     """
-    global __exceptionTime,__exceptionCount
+    global __exceptionTime,__exceptionCount, __terminated
 
     while(True):
+        if __terminated:
+            break
         try:
             startTime = time.time()
             
@@ -72,8 +76,8 @@ def __WorkThread():
                 __exceptionTime = int(time.time())
 
             __exceptionCount += 1
-            Log.Print("Exception: ",str(e))
-            Log.Info(__logFile,"Exception: " + str(e))
+            Log.Print("Download Data Exception: ",str(e))
+            Log.Info(__logFile,"Download Data Exception: " + str(e))
             time.sleep(1)
         finally:
             if __exceptionTime > 0:
@@ -90,6 +94,8 @@ def __WorkThread():
 
                     __exceptionTime = currTime
                     __exceptionCount = 0
+
+    Log.Print("!!!Terminated DataDownloader Stoped!")
 
 
 def DataValid():
@@ -109,6 +115,9 @@ def Start():
     t.start()
     Log.Print("DataDownloader Started!")
 
+def Stop():
+    global __terminated
+    __terminated = True
 
 '''
 Start()

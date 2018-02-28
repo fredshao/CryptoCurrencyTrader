@@ -1,24 +1,17 @@
 # -*- coding: utf-8 -*-
 
 persions = {}
+import time
 
-class Persion:
-    def __init__(self,name,age):
-        self.name = name
-        self.age = age
-
-    def DoChange(self):
-        self.name = "haha"
-        self.age = 18
-        Save()
+def WorkThread(price,amount,operationId):
+    print(price,amount,operationId)
 
 
-def Save():
-    for key in persions:
-        persion = persions[key]
-        print(persion.name,persion.age)
+import threading
 
-persion = Persion("Fred",26)
-persions[persion.name] = persion
+t = threading.Thread(target=WorkThread,args=(11011.12,0.02,str(time.time())))
+t.start()
 
-persion.DoChange()
+while(True):
+    pass
+

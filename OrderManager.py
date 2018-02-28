@@ -20,7 +20,7 @@ __exchangerBuyOrdersFile = './Data/exchangerBuyOrders'
 __exchangerSellOrdersFile = './Data/exchangerSellOrders'
 __sellingHoldBuyFile = './Data/sellingHoldBuy'
 
-terminated = False
+__terminated = False
 holdBuys = []
 
 # 正在卖出中的持有 {"operationId":HoldBuy}
@@ -48,6 +48,17 @@ class HoldBuy:
 
     def __str__(self):
         return "HoldBuy: orderId:{} buyTime:{} buyPrice:{} buyAmount:{} filledAmount:{} finalCost:{}".format(self.orderId,self.buyTime,self.buyPrice,self.buyAmount,self.filledAmount,self.finalCost)
+
+    def CanSell(self,price):
+       gainedQuote = price * self.buyAmoun t * 0.998
+       profit = gainedQuote - self.finalCost
+       if profit <= 0:
+           return False
+       profitPercentage = (profit / self.finalCost) * 100
+       if profitPercentage >= 6.0:
+           return True
+        else:
+           return False
 
 class OrderOperation:
     def __init__(self,orderType,orderTime,price,amount,operationId):
@@ -503,7 +514,7 @@ def __SendExchangerSell(sellPrice,sellAmount,operationId):
     """
     与交易所通信，下卖单
     """
-    global __exchangerSellOperations, __sellingHoldBuys
+    global __exchangerSellOperations, __sellingHoldBuys, holdBuys
     #Log.Print("Send Exchanger Sell: operationId:{} sellPrice:{} sellAmount:{}".format(operationId,sellPrice,sellAmount))
     Log.Print("Sending Exchanger Sell: operationId:{} sellPrice:{} sellAmount:{}".format(operationId,sellPrice,sellAmount))
     Log.Info("Sending Exchanger Sell: operationId:{} sellPrice:{} sellAmount:{}".format(operationId,sellPrice,sellAmount))
@@ -617,7 +628,7 @@ def __CheckSellOrdersState():
     检查所有的卖单是否被成交
     """
     # 如果卖单被成交了，踢除本地卖单，踢除交易所卖单，踢除对应的持有，修改资金，保存数据
-    global __exchangerSellOperations, holdBuys, __localSellOperations, sellingHoldBuy
+    global __exchangerSellOperations, holdBuys, __localSellOperations, __sellingHoldBuys
     for key in __exchangerSellOperations:
         operation = __exchangerSellOperations[key]
         if operation.state == 'end':
@@ -663,10 +674,13 @@ def __CheckSellOrdersState():
 
 
 def __OrderStateCheckThread():
-    global __exchangerBuyOperations, __exchangerSellOperations, holdBuys, __localBuyOperations, __localSellOperations, sellingHoldBuy
+    global __exchangerBuyOperations, __exchangerSellOperations, holdBuys, __localBuyOperations, __localSellOperations, sellingHoldBuy, __terminated
     while(True):
+        if __terminated:
+            break
         __CheckBuyOrdersState()
         __CheckSellOrdersState()
+    Log.Print("!!!Terminated OrderManager Order State Check Thread Stoped")
 
 
 def __ProofreadData():
@@ -684,19 +698,45 @@ def __StartOrderCheck():
     t.setDaemon(True)
     t.start()
 
+def __SellThread(sellPrice,sellAmount,operationId):
+    """
+    卖出下单线程
+    """
+    if __SendLocalSell(sellPrice,sellAmount,operationId) == True:
+        __SendExchangerSell(sellPrice,sellAmount,operationId)
+
+def SellCheck(price, operationId):
+    """
+    检查是否有可以卖的持有,如果有，就放到卖出列表中，然后调用卖出函数
+    """
+    global holdBuys,__sellingHoldBuys
+    holdCount = len(holdBuys)
+    holdBuy = None
+    for x in range(holdCount - 1, -1, -1):
+        holdBuy = holdBuys[x]
+        if holdBuy.CanSell(price):
+            del holdBuys[x]
+            __sellingHoldBuys[operationId] = holdBuy
+            break
+    if holdBuy != None:
+        SendSell(price,holdBuy.buyAmount,operationId)
+            
 
 def SendBuy(buyPrice,buyAmount,costQuote,operationId):
     # TODO: call exchanger API to send buy order
     if __SendLocalBuy(buyPrice,buyAmount,operationId) == True:
         __SendExchangerBuy(buyPrice,buyAmount,costQuote,operationId)
         
-
 def SendSell(sellPrice,sellAmount,operationId):
-    if __SendLocalSell(sellPrice,sellAmount,operationId) == True:
-        __SendExchangerSell(sellPrice,sellAmount,operationId)
+    """
+    下卖单放到子线程中去执行
+    """
+    t = threading.Thread(target=__SellThread,args=(sellPrice,sellAmount,operationId))
+    t.setDaemon(True)
+    t.start() 
     
 
-'''
+
 def Start():
     __LoadHoldBuy()
     __LoadLocalBuyOperations()
@@ -707,5 +747,7 @@ def Start():
     __ProofreadData()
     __StartOrderCheck()
 
-'''
 
+def Stop():
+    global __terminated
+    __terminated = True
