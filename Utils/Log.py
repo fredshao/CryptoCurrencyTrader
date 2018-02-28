@@ -6,7 +6,8 @@ import os
 
 def Print(*args):
     currTime = TimeUtil.GetShanghaiTime()
-    print(currTime,':',*args)
+    print(currTime,':', *args)
+    #print(args)
 
 
 def Info(logFilePath, logText):

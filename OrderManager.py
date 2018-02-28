@@ -7,7 +7,7 @@ import time
 from Utils import IOUtil, Log, TimeUtil
 from datetime import datetime
 import threading
-from AIP.Huobi import HuobiServices
+from API.Huobi import HuobiServices
 import BalanceManager
 
 SYMBOL = 'btcusdt'
@@ -325,7 +325,7 @@ def __SaveExchangerOperations(operations, fileName):
     """
     将交易所订单操作保存到文件
     """
-    jsonStr = json.dump(operations,default=__ExchangerOrderOperation2Json)
+    jsonStr = json.dumps(operations,default=__ExchangerOrderOperation2Json)
     IOUtil.WriteTextToFile(fileName,jsonStr)
 
 def __LoadExchangerBuyOperations():
@@ -344,7 +344,7 @@ def __SaveExchangerBuyOperations():
     保存交易所买入订单操作
     """
     global __exchangerBuyOperations
-    __SaveExchangerBuyOperation(__exchangerBuyOperations,__exchangerBuyOrdersFile)
+    __SaveExchangerOperations(__exchangerBuyOperations,__exchangerBuyOrdersFile)
 
 def __LoadExchangerSellOperations():
     """
@@ -362,7 +362,7 @@ def __SaveExchangerSellOperations():
     保存交易所卖出订单操作
     """
     global __exchangerSellOperations
-    __SaveExchangerOperations(__exchangerSellOrdersFile,__exchangerSellOrdersFile)
+    __SaveExchangerOperations(__exchangerSellOperations,__exchangerSellOrdersFile)
 
 
 def __LoadSellingHoldBuys():
@@ -372,19 +372,23 @@ def __LoadSellingHoldBuys():
     global __sellingHoldBuys
     if os.path.exists(__sellingHoldBuyFile):
         try:
-            jsonStr = IOUtil.ReadTextFromFile(fileName)
+            jsonStr = IOUtil.ReadTextFromFile(__sellingHoldBuyFile)
             __sellingHoldBuys = json.loads(jsonStr,object_hook=__SellingHoldBuyJson2Obj)
         except Exception as e:
             Log.Print("Fatal Error, Load Selling Hold Buys faild! {}".format(e))
             Log.Info(__logFile,"Fatal Error, Load Selling Hold Buys faild! {}".format(e))
             sys.exit()
 
+    for key in __sellingHoldBuys:
+        print(__sellingHoldBuys[key])
+    print("")
+
 def __SaveSellingHoldBuys():
     """
     保存正在出售的持有
     """
     global __sellingHoldBuys
-    jsonStr = json.dump(__sellingHoldBuys,default=__SellingHoldBuy2Json)
+    jsonStr = json.dumps(__sellingHoldBuys,default=__SellingHoldBuy2Json)
     IOUtil.WriteTextToFile(__sellingHoldBuyFile,jsonStr)
 
 def __SendLocalBuy(buyPrice,buyAmount,operationId):
@@ -589,7 +593,7 @@ def __CheckBuyOrdersState():
                     pass
             else:
                 Log.Print("FAILD RESULT - Check Order Info: status:{} rawJson:{}".format(status,jsonData))
-        except Exception e:
+        except Exception as e:
             Log.Print("Exception: Check buy order state faild: orderId:{}".format(orderId))
 
         time.sleep(0.3) # 每检查一个单，停顿0.3秒
@@ -638,7 +642,7 @@ def __CheckSellOrdersState():
                     Log.Info(__logFile,"FILLED! Sell Order Filled: orderId:{} profit:{} operationId:{}".format(orderId,profit,operationId))
             else:
                 Log.Print("FAILD RESULT - Check Order Info: status:{} rawJson:{}".format(status,jsonData))
-        except Exception e:
+        except Exception as e:
             Log.Print("Exception: Check sell order state filled: orderId:{}".format(orderId))
 
         time.sleep(0.3)
@@ -693,7 +697,7 @@ def SendSell(sellPrice,sellAmount,operationId):
         __SendExchangerSell(sellPrice,sellAmount,operationId)
     
 
-
+'''
 def Start():
     __LoadHoldBuy()
     __LoadLocalBuyOperations()
@@ -704,5 +708,5 @@ def Start():
     __ProofreadData()
     __StartOrderCheck()
 
-
+'''
 
