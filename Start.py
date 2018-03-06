@@ -129,7 +129,7 @@ def TryToSell(price):
     operationId = str(time.time())
     OrderManager.SellCheck(price,operationId) 
 
-
+   
 
 declineProbe = None
 riseProbe = None
