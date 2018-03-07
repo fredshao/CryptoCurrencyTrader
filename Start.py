@@ -11,6 +11,21 @@ from API.Huobi import HuobiServices
 import numpy as np
 
 
+"""
+基本流程是这样的
+买入操作:
+Start模块判断是否需要买入，如果是，调用BalanceManager操作资金，然后调用OrderManager执行买入
+如果买入成交，OrderManager模块则会调用HoldManager创建持有
+如果买入下单失败，OrderManager则要调用BalanceManager模块回滚资金
+
+卖出操作:
+Start模块根据策略判断现在是否是卖出时机，如果是，则会调用HoldManager获取所有可以卖出的持有
+然后调用OrderManager模块进行下单
+下单成功，OrderManager模块要回调HoldManager模块修改持有的状态
+下单失败，OrderManager模块要回调HoldManager模块修改持有的状态
+下单成交，OrderManager模块要回调HoldManager模块修改持有的状态
+"""
+
 
 class Probe:
     """

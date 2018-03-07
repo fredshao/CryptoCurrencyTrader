@@ -143,6 +143,8 @@ def __HoldJson2Obj(jsonData):
 def GetCanSellHold(bidPrice):
     """
     获取一个可以卖的持有
+
+    NOTE: 这里要改一下，改成一个列表，返回所有可以卖的，而不是一个
     """
     for hold in holds:
         if hold.CanSell(bidPrice):
@@ -205,7 +207,7 @@ def ArchiveHold(hold):
     archiveStr = GetArchiveHoldStr(hold)
     IOUtil.AppendTextToFile(__filledDataFile,archiveStr)
 
-def MakeHold(price,amount,cost,time,buyOrderId):
+def BuyFilled(operationId, price,amount,buyOrderId):
     """
     买入成功，创建一个Hold
     """
