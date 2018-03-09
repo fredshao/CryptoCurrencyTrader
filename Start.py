@@ -3,12 +3,14 @@
 import DataDownloader
 import BalanceManager
 import OrderManager
+import HoldManager
 import time
 from Utils import IOUtil, Log
 import os, sys
 import json
 from API.Huobi import HuobiServices
 import numpy as np
+from datetime import datetime
 
 
 """
@@ -110,8 +112,10 @@ def StartSystem():
     """
     启动各子系统
     """
-    DataDownloader.Start()
+    HoldManager.Start()
+    #DataDownloader.Start()
     BalanceManager.Start()
+    OrderManager.Start()
 
 
 def StopSystem():
@@ -119,41 +123,76 @@ def StopSystem():
     停止各子系统
     """
     OrderManager.Stop()
-    DataManager.Stop()
+    DataDownloader.Stop()
 
 def TryToBuy(price):
     """
-    这里尝试卖出，因为想要尽量快点成交，所以这里比第一卖出价便宜 1 usdt
+    这里尝试买入，因为想要尽量快点成交，所以这里比第一卖出价出更高的价格买入
+    先判断一定时间内，是否有比当前价格更低的买入还没有卖出去
+    再判断是否有和当前价格相差在150usdt之内的买入
+    再检查资金是否足够
     """
-    price -= 1
+    price += 1
+
+    dtNow = datetime.now()
+    rangeSeconds = 4 * 3600
+    count = 0
+    for hold in HoldManager.holds:
+        dtHold = hold.buyTime
+        timeDiff = (dtNow - dtHold).seconds
+        if timeDiff < rangeSeconds:
+            if hold.buyPrice < price:
+                count += 1
+
+        priceDiff = abs(hold.buyPrice - price)
+        if diff < 150:
+            return False
+
+    if count >= 2:
+        return False
+
     costQuote, buyAmount = BalanceManager.Buy(price)
-
     if costQuote < 0 or buyAmount < 0:
-        return
-
+        return False
+    
     operationId = str(time.time())
-    print("Try To Buy:",operationId,costQuote,buyAmount)
-    OrderManager.SendBuy(price,buyAmount,costQuote,operationId)
+    OrderManager.SendBuy(operationId,price,buyAmount, costQuote)
 
 
 def TryToSell(price):
     """
-    这里尝试买入，因为想要尽量快点成交，所以这里比第一买入价贵 1 usdt
+    这里尝试买入，因为想要尽量快点成交，所以这里要卖的便宜一点，比最低的买入者价格再低一1usdt
     """
-    price += 1
-    operationId = str(time.time())
-    OrderManager.SellCheck(price,operationId) 
+    price -= 1
+    index = 0
+    canSellList = HoldManager.GetCanSellHolds(price)
+    if canSellList != None and len(canSellList) > 0:
+        for hold in canSellList:
+            index += 1
+            operationId = hold.operationId
+            OrderManager.SendSell(operationId,price,hold.holdAmount,hold.buyCost)
+    
 
-   
+
+StartSystem()
+
+TryToBuy(8657)
+time.sleep(5)
+TryToSell(10321)
+
+while True:
+    pass
+
+
 
 declineProbe = None
 riseProbe = None
 
 
 if __name__ == '__main__':
-    InitSystem()
+    #InitSystem()
     StartSystem()
-    
+    print("All System Started!")
     while(True):
         if TerminateCheck():
             break
@@ -182,6 +221,8 @@ if __name__ == '__main__':
     StopSystem()
     Log.Print("!!!Terminated System Ready to Shutdown!!!!")
     time.sleep(20)
+
+
 
 
 #print(HuobiServices.get_spot_balance('btc'))

@@ -4,10 +4,9 @@ import json
 import sys
 from Utils import IOUtil,Log,MathUtil,TimeUtil
 from datetime import datetime
+import Const
 import time
 
-logFile = './Log/hold.log'
-__logFile = './Log/hold.log'
 __dataFile = "./Data/hold.dat"
 __filledDataFile = "./Data/filledHold.dat"
 
@@ -39,14 +38,11 @@ class Hold:
 
         gainedQuote = self.holdAmount * bidPrice * 0.998
         profit = gainedQuote - self.buyCost
-        print("CalculateProfit: ",profit,bidPrice,self.buyCost,gainedQuote)
         if profit <= 0:
             return False
         
         profit = MathUtil.GetPrecision(profit,4)
         profitPercentage = (profit / self.buyCost) * 100
-
-        print("Calculate Profit Percentage:",profitPercentage,bidPrice)
 
         if profitPercentage >= 5.0:
             return True
@@ -56,11 +52,13 @@ class Hold:
         要卖的时候，本地调用此方法锁定一个持有
         """
         if self.state != 'hold':
-            logStr = "FAILD! hold lock faild! " + self.__str__()
+            logStr = "HM - ##### FAILD! hold lock faild! " + self.__str__()
+            Log.Print(logStr)
+            Log.Info(Const.logFile,logStr)
             return False
-        logStr = "SUCCESS! hold lock successful! " + self.__str__()
+        logStr = "HM - SUCCESS! hold lock successful! " + self.__str__()
         Log.Print(logStr)
-        Log.Info(logFile,logStr)
+        Log.Info(Const.logFile,logStr)
         self.state = 'lock'
         return True
 
@@ -68,9 +66,9 @@ class Hold:
         """
         因为一些原因下单失败，需要回滚持有
         """
-        logStr = "Fallback Hold: " + self.__str__()
+        logStr = "HM - UnLock Hold: " + self.__str__()
         Log.Print(logStr)
-        Log.Info(logFile,logStr)
+        Log.Info(Const.logFile,logStr)
         self.state = 'hold'
 
     def HoldOnSelling(self,sellOrderId):
@@ -78,9 +76,9 @@ class Hold:
         当卖单下单成功后，调用此方法设置状态
         """
         if self.state != 'lock':
-            logStr = "ERROR! hold state error for Sell! " + self.__str__()
+            logStr = "HM - ##### ERROR! hold state error for Sell! " + self.__str__()
             Log.Print(logStr)
-            Log.Info(logFile,logStr)
+            Log.Info(Const.logFile,logStr)
             
         self.state = 'selling'
         self.sellOrderId = sellOrderId
@@ -95,15 +93,15 @@ class Hold:
         profit = gainedQuote - self.buyCost
         profit = MathUtil.GetPrecision(profit,4)
         if profit <= 0:
-            logStr = "FATAL ERROR! You are lose Money: !!!! " + self.__str__ + " filledPrice:{} filledCash:{}".format(filledPrice,filledCash)
+            logStr = "HM - ##### FATAL ERROR! You are lose Money: !!!! " + self.__str__ + " filledPrice:{} filledCash:{}".format(filledPrice,filledCash)
             Log.Print(logStr)
-            Log.Info(logFile,logStr)
+            Log.Info(Const.logFile,logStr)
             sys.exit()
         self.state = 'selled'
         self.profit = profit
-        logStr = "Cool! Sell Filled: buyPrice:{} buyCost:{} holdAmount:{} sellPrice:{} filledCash:{} profit:{}".format(self.buyPrice,self.buyCost,self.holdAmount,self.sellFilledPrice,filledCash,profit)
+        logStr = "HM - Cool! Sell Filled: buyPrice:{} buyCost:{} holdAmount:{} sellPrice:{} filledCash:{} profit:{}".format(self.buyPrice,self.buyCost,self.holdAmount,self.sellFilledPrice,filledCash,profit)
         Log.Print(logStr)
-        Log.Info(logFile,logStr)
+        Log.Info(Const.logFile,logStr)
 
 
 def __HoldObj2Json(obj):
@@ -140,19 +138,25 @@ def __HoldJson2Obj(jsonData):
     hold.operationId = operationId
     return hold
 
-def GetCanSellHold(bidPrice):
+def GetCanSellHolds(bidPrice):
     """
-    获取一个可以卖的持有
-
-    NOTE: 这里要改一下，改成一个列表，返回所有可以卖的，而不是一个
+    获取所有可以卖的持有
     """
+    canSellHolds = []
+    index = 10000
     for hold in holds:
         if hold.CanSell(bidPrice):
-            operationId = str(time.time())
-            hold.operationId = (operationId)
+            
             if hold.LockHold():
-                SaveHoldsData()
-                return hold
+                index += 1
+                operationId = str(time.time() + index)
+                hold.operationId = (operationId)
+                canSellHolds.append(hold)
+                #SaveHoldsData()
+                #return hold
+    if len(canSellHolds) > 0:
+        SaveHoldsData()
+        return canSellHolds
     return None
 
 def FallbackHold(operationId):
@@ -162,11 +166,11 @@ def FallbackHold(operationId):
     for hold in holds:
         if hold.operationId == operationId:
             hold.UnLockHold()
-            logStr = "Fallback Hold: " + hold.__str__()
+            logStr = "HM - ##### Fallback Hold: " + hold.__str__()
             Log.Print(logStr)
-            Log.Info(__logFile,logStr)
+            Log.Info(Const.logFile,logStr)
             break
-    __SaveHoldsData()
+    SaveHoldsData()
 
 def HoldOnSelling(operationId,sellOrderId):
     """
@@ -175,9 +179,9 @@ def HoldOnSelling(operationId,sellOrderId):
     for hold in holds:
         if hold.operationId == operationId:
             hold.HoldOnSelling(sellOrderId)
-            logStr = "Hold On Selling: " + hold.__str__()
+            logStr = "HM - Hold On Selling: " + hold.__str__()
             Log.Print(logStr)
-            Log.Info(__logFile,logStr)
+            Log.Info(Const.logFile,logStr)
             break
     SaveHoldsData()
 
@@ -191,9 +195,9 @@ def SellFilled(operationId, sellOrderId, filledPrice, filledCash):
             hold.SellFilled(filledPrice,filledCash)
             del holds[x]
             ArchiveHold(hold)
-            logStr = "Sell Filled: " + hold.__str__()
+            logStr = "HM - Sell Filled: " + hold.__str__()
             Log.Print(logStr)
-            Log.Info(__logFile)
+            Log.Info(Const.logFile,logStr)
             break
     SaveHoldsData()
 
@@ -207,12 +211,15 @@ def ArchiveHold(hold):
     archiveStr = GetArchiveHoldStr(hold)
     IOUtil.AppendTextToFile(__filledDataFile,archiveStr)
 
-def BuyFilled(operationId, price,amount,buyOrderId):
+def BuyFilled(operationId, price, amount,cost, buyOrderId):
     """
     买入成功，创建一个Hold
     """
+    #(self,buyPrice,holdAmount,buyCost,buyTime, buyOrderId):
     global holds
+    time = TimeUtil.GetShanghaiTime()
     hold = Hold(price,amount,cost,time,buyOrderId)
+    
     holds.append(hold)
     SaveHoldsData()
 
@@ -226,9 +233,9 @@ def __LoadHoldsData():
             jsonStr = IOUtil.ReadTextFromFile(__dataFile)
             holds = json.loads(jsonStr,object_hook=__HoldJson2Obj)
         except Exception as e:
-            logStr = "EXCEPTION! Load Hold Buy data exception: {}".format(e)
+            logStr = "HM - ##### EXCEPTION! Load Hold Buy data exception: {}".format(e)
             Log.Print(logStr)
-            Log.Info(__logFile,logStr)
+            Log.Info(Const.logFile,logStr)
             sys.exit()
 
 def SaveHoldsData():
@@ -239,20 +246,15 @@ def SaveHoldsData():
     jsonStr = json.dumps(holds,default=__HoldObj2Json)
     IOUtil.WriteTextToFile(__dataFile,jsonStr)
 
-def ProofreadData():
-    """
-    校对数据，检查正在卖出的持有是否已经成交，如果已经成交，则进行归档
-    这一个放在主线程中逐个检查就行，作为系统初始化校对的一部分
-    也可能会直接调用OrderManager中的检查函数
-    """
-    pass
 
+def Start():
+    __LoadHoldsData()
 
-__LoadHoldsData()
+#__LoadHoldsData()
 #MakeHold(10820,0.02,265,TimeUtil.GetShanghaiTime(),'10001434')
 
-for hold in holds:
-    print(hold)
+#for hold in holds:
+    #print(hold)
 
-hold = GetCanSellHold(11972)
-print("CanSell:\n",hold)
+#hold = GetCanSellHold(11972)
+#print("CanSell:\n",hold)

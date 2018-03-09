@@ -3,6 +3,7 @@ import os
 import json
 import sys
 from Utils import IOUtil,Log,MathUtil
+import Const
 
 # Buy -> 资金冻结 -> 成交 -> 冻结消耗
 #                -> 回滚 -> 冻结回到原始资金
@@ -11,11 +12,11 @@ from Utils import IOUtil,Log,MathUtil
 #      -> 回滚 -> 无操作 
 
 __baseBalance = 0           # 当前持有的 base 资金(btc)
-__quoteBalance = 1500       # 当前持有的可以购买的资金
+__quoteBalance = 3000       # 当前持有的可以购买的资金
 __frozeQuoteBalance = 0     # 当前冻结的购买资金
 __totalProfit = 0           # 盈利累加
-__totalQuote = 1500         # 从原始资金加上总盈利的资金
-__tradePart = 10
+__totalQuote = 3000         # 从原始资金加上总盈利的资金
+__tradePart = 3
 
 __logFile = "./Log/balance.log"
 __balanceFile = './Data/balance'
@@ -23,8 +24,8 @@ __balanceFile = './Data/balance'
 
 def __LogBalance(actionName):
     global __baseBalance,__quoteBalance,__frozeQuoteBalance,__totalProfit,__totalQuote
-    Log.Print("{}: baseBalance:{} quoteBalance:{} frozeQuote:{} totalProfit:{} totalQuote:{}".format(actionName,__baseBalance,__quoteBalance,__frozeQuoteBalance,__totalProfit,__totalQuote))
-    Log.Info(__logFile,"{}: baseBalance:{} quoteBalance:{} frozeQuote:{} totalProfit:{} totalQuote:{}".format(actionName,__baseBalance,__quoteBalance,__frozeQuoteBalance,__totalProfit,__totalQuote))
+    Log.Print("BM - {}: baseBalance:{} quoteBalance:{} frozeQuote:{} totalProfit:{} totalQuote:{}".format(actionName,__baseBalance,__quoteBalance,__frozeQuoteBalance,__totalProfit,__totalQuote))
+    Log.Info(Const.logFile,"BM - {}: baseBalance:{} quoteBalance:{} frozeQuote:{} totalProfit:{} totalQuote:{}".format(actionName,__baseBalance,__quoteBalance,__frozeQuoteBalance,__totalProfit,__totalQuote))
 
 def __LoadBalance():
     """
@@ -42,8 +43,8 @@ def __LoadBalance():
             __totalProfit = jsonData['totalProfit']
             __totalQuote = jsonData['totalQuote']
         except Exception as e:
-            Log.Print("Fatal Error , can not load balance file! ",e)
-            Log.Info(__logFile,"Fatal Error, Can not load balance file! " + str(e))
+            Log.Print("BM - ##### Fatal Error , can not load balance file! ",e)
+            Log.Info(Const.logFile,"BM - ##### Fatal Error, Can not load balance file! " + str(e))
             sys.exit()     
     else:
         __SaveBalance()
@@ -80,8 +81,8 @@ def Buy(price):
         buyAmount = costQuote / price
         buyAmount = MathUtil.GetPrecision(buyAmount,4)
 
-        Log.Print("Buy Info: price:{} costQuote:{} buyAmount:{}".format(price,costQuote,buyAmount))
-        Log.Info(__logFile,"Buy Info: price:{} costQuote:{} buyAmount:{}".format(price,costQuote,buyAmount))
+        Log.Print("BM - Buy Info: price:{} costQuote:{} buyAmount:{}".format(price,costQuote,buyAmount))
+        Log.Info(Const.logFile,"BM - Buy Info: price:{} costQuote:{} buyAmount:{}".format(price,costQuote,buyAmount))
 
         __SaveBalance()
         __LogBalance("After Buy Action")
@@ -95,8 +96,8 @@ def BuyFilled(costQuote, baseAmount):
     """
     global __frozeQuoteBalance,__baseBalance
     __LogBalance("Before Buy Filled")
-    Log.Print("Buy Filled Info: costQuote:{} filledAmount:{}".format(costQuote,baseAmount))
-    Log.Info(__logFile,"Buy Filled Info: costQuote:{} filledAmount:{}".format(costQuote,baseAmount))
+    Log.Print("BM - Buy Filled Info: costQuote:{} filledAmount:{}".format(costQuote,baseAmount))
+    Log.Info(Const.logFile,"BM - Buy Filled Info: costQuote:{} filledAmount:{}".format(costQuote,baseAmount))
     __frozeQuoteBalance -= costQuote
     __baseBalance += baseAmount
     __SaveBalance()
@@ -108,8 +109,8 @@ def BuyFallback(costQuote):
     """
     global __quoteBalance, __frozeQuoteBalance
     __LogBalance("Before Buy Fallback")
-    Log.Print("Buy Fallback Info: costQuote:{}".format(costQuote))
-    Log.Info(__logFile,"Buy Fallback Info: costQuote:{}".format(costQuote))
+    Log.Print("BM - Buy Fallback Info: costQuote:{}".format(costQuote))
+    Log.Info(Const.logFile,"BM - Buy Fallback Info: costQuote:{}".format(costQuote))
     __frozeQuoteBalance -= costQuote
     __quoteBalance += costQuote
     __SaveBalance()
@@ -127,8 +128,8 @@ def SellFilled(filledQuote,profit,selledAmount):
     """
     global __baseBalance,__quoteBalance,__totalQuote,__totalProfit
     __LogBalance("Before Sell Filled")
-    Log.Print("Sell Filled Info: filledQuote:{} profit:{} selledAmount:{}".format(filledQuote,profit,selledAmount))
-    Log.Info(__logFile,"Sell Filled Info: filledQuote:{} profit:{} selledAmount:{}".format(filledQuote,profit,selledAmount))
+    Log.Print("BM - Sell Filled Info: filledQuote:{} profit:{} selledAmount:{}".format(filledQuote,profit,selledAmount))
+    Log.Info(Const.logFile,"BM - Sell Filled Info: filledQuote:{} profit:{} selledAmount:{}".format(filledQuote,profit,selledAmount))
     __baseBalance -= selledAmount
     __quoteBalance += filledQuote
     __totalProfit += profit
