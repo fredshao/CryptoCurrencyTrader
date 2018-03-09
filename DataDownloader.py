@@ -44,6 +44,7 @@ def __ParseData(bid,ask):
     realTimeBids.append(bid)
     realTimeAsks.append(ask)
     __dataTime = int(time.time())
+    #print(bid,ask)
     
 def __WorkThread():
     """

@@ -98,7 +98,7 @@ def OnTradeFilled(tradeOperation, fieldCash):
     SaveTradeOperations()
 
     if tradeOperation.tradeType == 1: # 处理买入订单成交
-        gainedBase = tradeOperation.tradeAmount * 0.998
+        gainedBase = tradeOperation.tradeAmount * 0.997
         gainedBase = MathUtil.GetPrecision(gainedBase,4)
         logStr = "OM - Buy Order Filled: operationId:{} gainedBase:{}".format(tradeOperation.operationId,gainedBase)
         Log.Print(logStr)
@@ -107,7 +107,7 @@ def OnTradeFilled(tradeOperation, fieldCash):
         BalanceManager.BuyFilled(tradeOperation.cost,gainedBase)
     elif tradeOperation.tradeType == 0: # 处理卖出订单成交
         # TODO: 这里要实际成交一单，查看一下最终收益和自己计算的收益是否一样
-        fieldCash = float(fieldCash) - 1 # 这里为避免float交易不精确，所以往少里算一点
+        fieldCash = float(fieldCash) * 0.997 # 这里为避免float交易不精确，所以往少里算一点
         profit = fieldCash - tradeOperation.cost
         logStr = "OM - Sell Order Filled: operationId:{} fieldCash:{} profit:{}".format(tradeOperation.operationId,fieldCash,profit) 
         Log.Print(logStr)
@@ -164,7 +164,7 @@ def SendBuy(operationId, price, amount, cost):
 def SendSell(operationId,price,amount, buyCost):
     """
     卖出持有
-    operationId: 操作Id
+    operationId: 操作Id 
     price: 卖出价格
     amount: 卖出数量
     buyCost: 购买的时候花了多少钱，用于计算收益
@@ -182,7 +182,7 @@ def SendSell(operationId,price,amount, buyCost):
                 sellOperation = TradeOperation(0,price,amount,operationId,orderId, buyCost)
                 __tradeOperations.append(sellOperation)
                 SaveTradeOperations()
-                logStr = "OM - SUCCESS! Send Sell Order OK! operationId:{} price:{} amount:{} cost:{} orderId:{}".format(operationId,price,amount,cost,orderId)
+                logStr = "OM - SUCCESS! Send Sell Order OK! operationId:{} price:{} amount:{} cost:{} orderId:{}".format(operationId,price,amount,buyCost,orderId)
                 Log.Print(logStr)
                 Log.Info(Const.logFile,logStr)
                 return
@@ -210,6 +210,7 @@ def __WorkThread_CheckTradeFillState():
     """
     检查所有订单的成交状态
     """
+    Log.Print("OrderManager Started!")
     global __tradeOperations, __terminated
     while (__terminated != True):
         tradeLen = len(__tradeOperations)
@@ -240,7 +241,7 @@ def __WorkThread_CheckTradeFillState():
                     Log.Info(Const.logFile,logStr)
             time.sleep(1)
         time.sleep(2)
-
+    Log.Print("!!!Terminated OrderManager Stoped!")
 
 def __DoCheckTradeFill():
     t = threading.Thread(target=__WorkThread_CheckTradeFillState)

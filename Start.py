@@ -75,14 +75,6 @@ def SetProbe(price,probeType,lastTriggeredProbe = None):
     return p
 
 
-def TerminateCheck():
-    if os.path.exists('terminate'):
-        return True
-    else:
-        return False
-
-
-
 def InitSystem():
     """
     加载密钥，初始化交易所服务
@@ -113,7 +105,7 @@ def StartSystem():
     启动各子系统
     """
     HoldManager.Start()
-    #DataDownloader.Start()
+    DataDownloader.Start()
     BalanceManager.Start()
     OrderManager.Start()
 
@@ -145,7 +137,7 @@ def TryToBuy(price):
                 count += 1
 
         priceDiff = abs(hold.buyPrice - price)
-        if diff < 150:
+        if priceDiff < 150:
             return False
 
     if count >= 2:
@@ -157,7 +149,7 @@ def TryToBuy(price):
     
     operationId = str(time.time())
     OrderManager.SendBuy(operationId,price,buyAmount, costQuote)
-
+    return True
 
 def TryToSell(price):
     """
@@ -173,29 +165,23 @@ def TryToSell(price):
             OrderManager.SendSell(operationId,price,hold.holdAmount,hold.buyCost)
     
 
-
-StartSystem()
-
-TryToBuy(8657)
-time.sleep(5)
-TryToSell(10321)
-
-while True:
-    pass
-
+def Terminated():
+    if os.path.exists("terminated"):
+        return True
+    return False
 
 
 declineProbe = None
 riseProbe = None
 
-
 if __name__ == '__main__':
-    #InitSystem()
+    InitSystem()
     StartSystem()
     print("All System Started!")
     while(True):
-        if TerminateCheck():
+        if Terminated():
             break
+
         if DataDownloader.DataValid():
             currBidPrice = DataDownloader.realTimeBids[-1]
             TryToSell(currBidPrice)
@@ -213,6 +199,7 @@ if __name__ == '__main__':
                 if declineProbe.Triggered(meanPrice):
                     declineProbe = SetProbe(currAskPrice,0,declineProbe)
                     riseProbe = SetProbe(currAskPrice,1)
+                    print("------->Try To Buy:",currAskPrice)
                     TryToBuy(currAskPrice)
                 elif riseProbe.Triggered(meanPrice):
                     declineProbe = SetProbe(currAskPrice,0)

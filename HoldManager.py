@@ -89,7 +89,7 @@ class Hold:
         当卖单成交时，调用此方法进行最终的结算
         """
         self.sellFilledPrice = filledPrice
-        gainedQuote = self.holdAmount * filledPrice * 0.998
+        gainedQuote = filledCash
         profit = gainedQuote - self.buyCost
         profit = MathUtil.GetPrecision(profit,4)
         if profit <= 0:

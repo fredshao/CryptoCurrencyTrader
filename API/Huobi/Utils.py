@@ -30,8 +30,11 @@ def set_key(access_key, secret_key):
 
 
 # API 请求地址
-MARKET_URL = "https://api.huobi.pro"
-TRADE_URL = "https://api.huobi.pro"
+#MARKET_URL = "https://api.huobi.pro"
+#TRADE_URL = "https://api.huobi.pro"
+
+MARKET_URL = "https://api.huobipro.com"
+TRADE_URL = "https://api.huobipro.com"
 
 # 首次运行可通过get_accounts()获取acct_id,然后直接赋值,减少重复获取。
 
