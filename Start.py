@@ -11,6 +11,7 @@ import json
 from API.Huobi import HuobiServices
 import numpy as np
 from datetime import datetime
+import Const
 
 
 """
@@ -96,7 +97,9 @@ def InitSystem():
         HuobiServices.init_symbols()
         
     except Exception as e:
-        Log.Print("Fatal Error: Init system faild!\nException: ",e)
+        logStr = "Fatal Error: Init System Faild!\n Exception:{}".format(e)
+        Log.Print(logStr)
+        Log.Info(Const.logFile,logStr)
         sys.exit()
 
 
@@ -177,7 +180,9 @@ riseProbe = None
 if __name__ == '__main__':
     InitSystem()
     StartSystem()
-    print("All System Started!")
+    logStr = "All System Started!"
+    Log.Print(logStr)
+    Log.Info(Const.logFile,logStr)
     while(True):
         if Terminated():
             break
@@ -199,14 +204,18 @@ if __name__ == '__main__':
                 if declineProbe.Triggered(meanPrice):
                     declineProbe = SetProbe(currAskPrice,0,declineProbe)
                     riseProbe = SetProbe(currAskPrice,1)
-                    print("------->Try To Buy:",currAskPrice)
+                    logStr = "-----> Try To Buy: {}".format(currAskPrice)
+                    Log.Print(logStr)
+                    Log.Info(Const.logFile,logStr)
                     TryToBuy(currAskPrice)
                 elif riseProbe.Triggered(meanPrice):
                     declineProbe = SetProbe(currAskPrice,0)
                     riseProbe = SetProbe(currAskPrice,1,riseProbe)
         time.sleep(0.5)
     StopSystem()
-    Log.Print("!!!Terminated System Ready to Shutdown!!!!")
+    logStr = "!!!Terminated System Ready to Shutdown!!!!"
+    Log.Print(logStr)
+    Log.Info(Const.logFile,logStr)
     time.sleep(20)
 
 

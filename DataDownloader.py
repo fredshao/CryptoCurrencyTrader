@@ -3,6 +3,7 @@ from API.Huobi import HuobiServices
 from Utils import Log
 import threading
 import time
+import Const
 
 
 realTimeAsks = []
@@ -95,8 +96,9 @@ def __WorkThread():
 
                     __exceptionTime = currTime
                     __exceptionCount = 0
-
-    Log.Print("!!!Terminated DataDownloader Stoped!")
+    logStr = "!!!Terminated DataDownloader Stoped!"
+    Log.Print(logStr)
+    Log.Info(Const.logFile,logStr)
 
 
 def DataValid():
@@ -114,7 +116,9 @@ def Start():
     t = threading.Thread(target=__WorkThread)
     t.setDaemon(True)
     t.start()
-    Log.Print("DataDownloader Started!")
+    logStr = "DataDownloader Started!"
+    Log.Print(logStr)
+    Log.Info(Const.logFile,logStr)
 
 def Stop():
     global __terminated

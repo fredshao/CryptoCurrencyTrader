@@ -210,7 +210,9 @@ def __WorkThread_CheckTradeFillState():
     """
     检查所有订单的成交状态
     """
-    Log.Print("OrderManager Started!")
+    logStr = "OrderManager Started!"
+    Log.Print(logStr)
+    Log.Info(Const.logFile,logStr)
     global __tradeOperations, __terminated
     while (__terminated != True):
         tradeLen = len(__tradeOperations)
@@ -242,6 +244,7 @@ def __WorkThread_CheckTradeFillState():
             time.sleep(1)
         time.sleep(2)
     Log.Print("!!!Terminated OrderManager Stoped!")
+    Log.Info(Const.logFile,"!!!Terminated OrderManager Stoped!")
 
 def __DoCheckTradeFill():
     t = threading.Thread(target=__WorkThread_CheckTradeFillState)
