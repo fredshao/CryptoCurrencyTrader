@@ -1,4 +1,4 @@
 # -*- coding: utf-8 -*-
 
 logFile = "./Log/Log.log"
-dataFile_orderManager = "./Data/tradeOperations"
+dataFile_orderManager = "./Data/tradeOperations.dat"
