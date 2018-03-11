@@ -19,7 +19,7 @@ __totalQuote = 3000         # 从原始资金加上总盈利的资金
 __tradePart = 3
 
 __logFile = "./Log/balance.log"
-__balanceFile = './Data/balance'
+__balanceFile = './Data/balance.dat'
 
 
 def __LogBalance(actionName):
