@@ -72,7 +72,9 @@ def SetProbe(price,probeType,lastTriggeredProbe = None):
         else:
             currProbeLevel = 100
         p = Probe(probeType,price + currProbeLevel,currProbeLevel)
-        
+    logStr = "Set Probe: probeType:{} price:{} probeLevel:{} probePrice:{}".format(probeType,price, currProbeLevel, p.probePrice)
+    Log.Print(logStr)
+    Log.Info(Const.logFile,logStr)
     return p
 
 
@@ -187,7 +189,7 @@ if __name__ == '__main__':
         if Terminated():
             break
 
-        if DataDownloader.DataValid():
+        if DataDownloader.DataValid() and len(DataDownloader.realTimeBids) > 0:
             currBidPrice = DataDownloader.realTimeBids[-1]
             TryToSell(currBidPrice)
 
